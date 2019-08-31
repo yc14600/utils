@@ -8,9 +8,11 @@ import scipy as sp
 import gzip
 import os
 import tensorflow as tf 
+import pickle
+import subprocess
 from tensorflow.python.platform import gfile
 
-from utils.train_util import one_hot_encoder
+from .train_util import one_hot_encoder, get_next_batch
 
 
 
@@ -25,6 +27,7 @@ def extract_data(fpath,shape,dtype=np.float32):
         ValueError: If the bytestream does not start with 2051.
     """
     with open(fpath, 'rb') as f:
+        print('Extracting', f.name)
         with gzip.GzipFile(fileobj=f) as bytestream:
             buf = bytestream.read()
             data = np.frombuffer(buf, dtype=dtype)
@@ -65,6 +68,8 @@ def save_samples(path,samples,file_name=None):
 
     if file_name is None:
         file_name = ['samples','labels']
+    elif not isinstance(file_name,list):
+        file_name = [file_name]
 
     if not isinstance(samples,list):
         samples = [samples]
@@ -73,3 +78,52 @@ def save_samples(path,samples,file_name=None):
         #print(s.shape)
         with gzip.open(path+fname+'.gz', 'wb') as f:
             f.write(s)
+
+    return 
+
+
+def load_pkl(fpath):
+    with open(fpath, 'rb') as file:
+        from dnnlib.tflib import init_tf
+        init_tf()
+        return pickle.load(file, encoding='latin1')
+
+
+def load_inception_net(fpath=None):
+    if not fpath:
+        url = 'https://drive.google.com/uc?id=1MzTY44rLToO5APn8TZmfR7_ENSe5aZUn'
+        os.system('curl -L -O -C - '+url)
+        os.system('mv uc?id=1MzTY44rLToO5APn8TZmfR7_ENSe5aZUn inception.pkl')
+
+        fpath = './inception.pkl'
+    return load_pkl(fpath) # inception_v3_features.pkl
+
+
+
+def extract_inception_feature(data,inception,batch_size=16,num_gpus=1):
+    activations = np.empty([data.shape[0], inception.output_shape[1]], dtype=np.float32)
+    ii = 0
+    iters = int(np.ceil(data.shape[0]/batch_size))
+    for i in range(iters):
+        start = ii
+        x_batch,_,ii = get_next_batch(data,batch_size,ii,repeat=False)
+        activations[start:ii] = inception.run(x_batch, num_gpus=num_gpus, assume_frozen=True)
+
+    return activations
+
+
+def insert_noise(data, noise_p, noise_dim=15,in_place=False):
+    
+    x_dim = data.shape[1:]
+    data = data.reshape(data.shape[0],-1)
+
+    m = int(data.shape[0]*noise_p)
+    nx = np.random.choice(data.shape[0],size=m,replace=False)
+    ny = np.random.choice(data.shape[1],size=noise_dim,replace=True)
+    row = np.repeat(nx,noise_dim)
+    col = np.concatenate([ny]*m)
+    noise_data = data if in_place else data.copy() 
+    noise_data[row,col] = 0.5 # for data scaled between [0,1]
+    
+    return noise_data.reshape(-1,*x_dim)
+

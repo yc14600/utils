@@ -6,7 +6,7 @@ import argparse
 import os
 
 from scipy.stats import multivariate_normal, norm
-from utils.train_util import gen_class_split_data,one_hot_encoder
+from utils.train_util import gen_class_split_data,one_hot_encoder,shuffle_data
 from utils.data_util import *
 from base_models.gans import fGAN
 
@@ -59,7 +59,7 @@ def get_dist_list(d_dim,means,stds,pi=[]):
         for m,s in zip(means,stds):
             dl.append(gen_dist(d_dim,m,s))
     else:
-        for m,s,p in zip(means,stds,pis):
+        for m,s,p in zip(means,stds,pi):
             dl.append(gen_dist(d_dim,m,s,p))
 
     return dl
@@ -187,7 +187,7 @@ def update_toygaussian_dists(args,t,ori_nu_means,ori_nu_stds,ori_nu_dists,nu_mea
 
 def load_task_data(t,dpath,x_shape,c_shape,sample_size,test_sample_size):
     fpath = dpath+'task'+str(t)+'/'
-    tot_samples = extract_images(fpath+'samples.gz',x_shape)
+    tot_samples = extract_data(fpath+'samples.gz',x_shape)
     tot_labels = extract_labels(fpath+'labels.gz',c_shape,dtype=np.float32)
     class_size = int(tot_samples.shape[0]/(t+1))
     print('tot size',tot_samples.shape,tot_labels.shape,'class size',class_size)
@@ -214,7 +214,7 @@ def load_task_data(t,dpath,x_shape,c_shape,sample_size,test_sample_size):
     return labels,samples,test_labels,test_samples
 
 def load_image_data(t,dpath,x_shape,sample_size,test_sample_size):
-    tot_samples = extract_images(dpath+'samples.gz',x_shape)
+    tot_samples = extract_data(dpath+'samples.gz',x_shape)
     class_size = int(tot_samples.shape[0]/t)
     print('tot size',tot_samples.shape,'class size',class_size)
     test_samples, samples = [],[]
@@ -236,7 +236,7 @@ def load_image_data(t,dpath,x_shape,sample_size,test_sample_size):
 
 
 def gen_task_samples(t,sample_size,test_sample_size,dpath,c_dim,ori_X,ori_Y,ori_test_X=None,ori_test_Y=None,\
-                        model_type='continual',tcs=[]):
+                        model_type='continual',tcs=[],shuffled=False):
 
     nu_samples,de_samples,samples_c = [],[],[]
     test_nu_samples,test_de_samples,test_samples_c = [],[],[]
@@ -300,14 +300,6 @@ def gen_task_samples(t,sample_size,test_sample_size,dpath,c_dim,ori_X,ori_Y,ori_
     elif model_type == 'taskratio_cond':
         samples_c,test_samples_c = [],[]
         nu_samples,samples_c_t,test_nu_samples,test_samples_c_t = gen_class_split_data(0,sample_size,test_sample_size,ori_X,ori_Y,ori_test_X,ori_test_Y,[t],one_hot=False,C=1)            
-        '''
-        mask = np.zeros(c_dim)
-        mask[:t+1] = 1
-        samples_c = np.ones([samples_c.shape[0],1])
-        samples_c = samples_c * mask
-        test_samples_c = np.ones([test_samples_c.shape[0],1])
-        test_samples_c = test_samples_c * mask
-        '''
         de_samples,d_samples_c,test_de_samples,test_d_samples_c = gen_class_split_data(0,sample_size,test_sample_size,ori_X,ori_Y,ori_test_X,ori_test_Y,[t+1],one_hot=False,C=1)            
         for i in range(t+1):
             c_i = np.ones_like(samples_c_t)*i
@@ -329,10 +321,14 @@ def gen_task_samples(t,sample_size,test_sample_size,dpath,c_dim,ori_X,ori_Y,ori_
         print('single',t,'sample_size',sample_size)
         nu_samples,test_nu_samples = ori_X[:sample_size*t],ori_test_X[:test_sample_size*t]
         x_shape = list(nu_samples.shape[1:])
-        de_samples,test_de_samples = load_image_data(t,dpath,x_shape,sample_size,test_sample_size)
+        if shuffled:
+            de_samples = extract_data(dpath,x_shape)
+            de_samples,test_de_samples = de_samples[:sample_size*t],de_samples[-test_sample_size*t:]
+        else:
+            de_samples,test_de_samples = load_image_data(t,dpath,x_shape,sample_size,test_sample_size)
         samples_c, test_samples_c = None, None
 
-    elif model_type == 'split': #nu samples are half classes
+    elif model_type == 'splitclass': #nu samples are half classes
         for i in range(int(t/2)):
             nu_samples_i,samples_c_i,test_nu_samples_i,test_samples_c_i = gen_class_split_data(0,sample_size,test_sample_size,ori_X,ori_Y,ori_test_X,ori_test_Y,[i],one_hot=False,C=1)            
             samples_c_i = one_hot_encoder(samples_c_i,c_dim)

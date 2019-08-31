@@ -103,7 +103,7 @@ def gen_class_split_data(seed,train_size,test_size,x_train,y_train,x_test,y_test
     print('select classes',cls)
     #print('one hot',one_hot)
     t_x_train,t_y_train = split_data(x_train,y_train,cls,C,train_size,one_hot)
-    if x_test is not None:
+    if test_size > 0:
         t_x_test,t_y_test = split_data(x_test,y_test,cls,C,test_size,one_hot)
     else:
         t_x_test,t_y_test = None,None
@@ -179,7 +179,7 @@ def get_next_batch(data, B, ii,labels=None,repeat=True):
                 return data[ii:],labels[ii:],0
 
 
-def plot(samples,MNIST=True,shape=None):
+def plot(samples,shape=None,cmap='Greys_r'):
     if shape is None:
         rows = 4
         cols = 4
@@ -197,10 +197,10 @@ def plot(samples,MNIST=True,shape=None):
         ax.set_xticklabels([])
         #ax.set_yticklabels([])
         #ax.set_aspect('equal')
-        if MNIST:
-            plt.imshow(sample.reshape(28, 28), cmap='Greys_r')
-        else:
-            plt.plot(sample)
+        #if MNIST:
+        #    plt.imshow(sample.reshape(28, 28), cmap='Greys_r')
+        #else:
+        plt.imshow(sample,cmap=cmap)
 
     return fig
 
@@ -441,7 +441,8 @@ def shuffle_data(*X):
         break
     
     np.random.shuffle(idx)  
-    return (x[idx] for x in X)
+    rt = [x[idx] for x in X]
+    return rt
 
 
 def normal_logpdf(x,loc,scale):

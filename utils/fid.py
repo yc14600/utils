@@ -9,7 +9,8 @@ import six
 import tensorflow as tf
 from scipy import linalg
 
-from utils.train_util import config_optimizer, get_next_batch, get_var_list
+from .train_util import config_optimizer, get_next_batch, get_var_list
+from .data_util import extract_inception_feature,load_inception_net
 from base_models.gans import GAN
 from base_models.classifier import Classifier
 from base_models.vae import VAE
@@ -19,32 +20,30 @@ from base_models.vae import VAE
 class FID_Evaluator(object):
     def __init__(self,x_dim,y_dim,net_shape,batch_size,conv=False,sess=None,ac_fn=tf.nn.relu,\
                 batch_norm=False,learning_rate=0.001,op_type='adam',decay=None,clip=None,reg=None,
-                epoch=100,print_e=20,feature_type='classifier',d_net_shape=None,*args,**kargs):
-        #self.x_ph = tf.placeholder(dtype=tf.float32,shape=[batch_size]+x_dim)
-        #self.y_ph = tf.placeholder(dtype=tf.float32,shape=[batch_size]+y_dim)
-        #self.batch_size = batch_size
+                epoch=100,print_e=20,feature_type='classifier',d_net_shape=None,ipath=None,*args,**kargs):
+
         self.feature_type = feature_type
         if sess is None:
             self.sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
         else:
             self.sess = sess
-        #self.is_training = tf.placeholder(dtype=tf.bool,shape=[]) if batch_norm else None
 
-        if feature_type == 'classifier':
+        if net_shape is None:
+            if feature_type == 'inception':
+                self.feature_model = load_inception_net(ipath)
+            else:
+                self.feature_model = None
+
+        elif feature_type == 'classifier':
             self.feature_model = Classifier(x_dim,y_dim,net_shape,batch_size,sess=self.sess,epochs=epoch,conv=conv,ac_fn=ac_fn,batch_norm=batch_norm,\
                                             learning_rate=learning_rate,op_type=op_type,decay=decay,clip=clip,reg=reg)
-            #self.d_W,self.d_B,self.d_H = self.feature_model.W,self.feature_model.B,self.feature_model.H
-            #self.y_ph = self.feature_model.y_ph
 
         elif feature_type == 'VAE':
             self.feature_model = VAE(x_dim,y_dim,batch_size,net_shape,d_net_shape,sess=self.sess,epochs=epoch,print_e=print_e,\
                                     learning_rate=learning_rate,conv=conv,reg=reg)
-            #self.d_W,self.d_B,self.d_H = self.feature_model.dW,self.feature_model.dB,self.feature_model.dH
-        
-        #self.x_ph = self.feature_model.x_ph
-        #self.d_W,self.d_B,self.d_H = GAN.define_d_net(self.x_ph,net_shape,reuse=False,conv=conv,ac_fn=ac_fn,\
-        #                                            batch_norm=batch_norm,reg=reg)
-        #self.train, self.var_list,self.opt = self.config_train(learning_rate,op_type,decay=decay,clip=clip)
+
+       
+
 
         return
 
@@ -72,6 +71,8 @@ class FID_Evaluator(object):
             z = self.feature_model.extract_feature(x)
         elif self.feature_type == 'VAE':
             z = self.feature_model.encode(x)
+        elif self.feature_type == 'inception':
+            z = extract_inception_feature(x,self.feature_model)
 
         return z
 
