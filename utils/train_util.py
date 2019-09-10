@@ -200,6 +200,10 @@ def plot(samples,shape=None,cmap='Greys_r'):
         #if MNIST:
         #    plt.imshow(sample.reshape(28, 28), cmap='Greys_r')
         #else:
+        if cmap == 'Greys_r':
+            assert(len(sample.shape)<3 or sample.shape[2]==1)
+            sample = sample.reshape(sample.shape[0],sample.shape[1])
+        #print('plot sample shape',sample.shape)
         plt.imshow(sample,cmap=cmap)
 
     return fig
@@ -293,22 +297,26 @@ def build_toy_dataset(mtype,N,M,K,s_std=1,s_mean=0,d_std=1,d_mean=0,noise_std=0.
 
 
     
-def config_optimizer(starter_learning_rate,step_name,grad_type,decay=None,beta1=0.9):
-    print('config optimizer, grad type',grad_type)
-    step = tf.Variable(0, trainable=False, name=step_name)
-    if decay is not None:
-        learning_rate = tf.train.exponential_decay(starter_learning_rate,
-                                            step,
-                                            decay[0], decay[1], staircase=True)
-    else:
-        learning_rate = starter_learning_rate
+def config_optimizer(starter_learning_rate,step_name,grad_type,decay=None,beta1=0.9,scope=None):
 
-    if 'adam' in grad_type:                                       
-        optimizer = (tf.train.AdamOptimizer(learning_rate,beta1=beta1),step)
-    elif 'sgd' in grad_type:
-        optimizer = (tf.train.GradientDescentOptimizer(learning_rate),step)
-    elif 'ada_delta' in grad_type:
-        optimizer = (tf.train.AdadeltaOptimizer(learning_rate),step)
+    if not scope:
+        scope = step_name.split('_')[0]
+    print('config optimizer, grad type {}, scope {}'.format(grad_type,scope))
+    with tf.variable_scope(scope):
+        step = tf.Variable(0, trainable=False, name=step_name)
+        if decay is not None:
+            learning_rate = tf.train.exponential_decay(starter_learning_rate,
+                                                step,
+                                                decay[0], decay[1], staircase=True)
+        else:
+            learning_rate = starter_learning_rate
+
+        if 'adam' in grad_type:                                       
+            optimizer = (tf.train.AdamOptimizer(learning_rate,beta1=beta1),step)
+        elif 'sgd' in grad_type:
+            optimizer = (tf.train.GradientDescentOptimizer(learning_rate),step)
+        elif 'ada_delta' in grad_type:
+            optimizer = (tf.train.AdadeltaOptimizer(learning_rate),step)
     
     return optimizer
 
@@ -525,4 +533,16 @@ def load_cifar10(path=None):
         x_test = x_test.transpose(0, 2, 3, 1)
 
     return (x_train, y_train), (x_test, y_test)
+
+
+def reinitialize_scope(scope,sess):
+    if isinstance(scope,str):
+        scope = [scope]
+    tmp = []
+    for s in scope:
+        for v in tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=s):
+            tmp.append(v)
+    print('reinit var list with length {} in scope {}'.format(len(tmp), scope))
+    tf.variables_initializer(tmp).run(session=sess)
+    return
         

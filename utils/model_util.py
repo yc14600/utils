@@ -144,6 +144,7 @@ def define_dense_layer(l,d1,d2,initialization=None,reg=None):
 
 
 def linear(x,w,b):
+    #print('linear func check',x.shape,w.shape,b.shape)
     return tf.add(tf.matmul(x,w),b)
 
 
