@@ -127,3 +127,11 @@ def insert_noise(data, noise_p, noise_dim=15,in_place=False):
     
     return noise_data.reshape(-1,*x_dim)
 
+
+def gen_noise_samples_by_range(data, noise_p_range, noise_dim_range, in_place=False, p_step=0.01,dim_step=1,save_path='./'):
+
+    for p in np.arange(noise_p_range[0], noise_p_range[1], p_step):
+        for d in np.arange(noise_dim_range[0], noise_dim_range[1], dim_step):
+            n_data = insert_noise(data,p,d,in_place)
+            save_samples(save_path,[n_data],file_name=['noise_f'+str(int(p*100))+'_nd'+str(d)+'_samples'])
+    return

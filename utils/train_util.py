@@ -46,13 +46,13 @@ def gen_permuted_data(seed,x_train,x_test):
     np.random.shuffle(perm_inds)
     return x_train[:,perm_inds],x_test[:,perm_inds]
 
-def gen_class_split_data_multiclass(seed,train_size,test_size,x_train,y_train,x_test,y_test,cls=None):
+def gen_class_split_data_multiclass(seed,train_size,test_size,x_train,y_train,x_test,y_test,clss=None):
     np.random.seed(seed)
-    if cls is None:
-        cls = np.random.choice(y_test.shape[1],size=2,replace=False)
-    print('select classes',cls)
+    if clss is None:
+        clss = np.random.choice(y_test.shape[1],size=2,replace=False)
+    print('select classes',clss)
     mask = np.zeros(y_test.shape[1])
-    mask[cls] = 1
+    mask[clss] = 1
     train_idx = np.sum(np.abs(mask - y_train),axis=1)==1
     t_x_train = x_train[train_idx][:train_size]
     t_y_train = y_train[train_idx][:train_size]
@@ -63,11 +63,11 @@ def gen_class_split_data_multiclass(seed,train_size,test_size,x_train,y_train,x_
     return t_x_train,t_y_train,t_x_test,t_y_test
 
 
-def split_data(x_train,y_train,cls,C,train_size,one_hot):
-    train_idx = (y_train==cls[0]).reshape(-1)
+def split_data(x_train,y_train,clss,C,train_size,one_hot):
+    train_idx = (y_train==clss[0]).reshape(-1)
     for c in range(1,C):
         #print(c,np.sum(train_idx))
-        train_idx = train_idx | (y_train==cls[c]).reshape(-1)
+        train_idx = train_idx | (y_train==clss[c]).reshape(-1)
     if  train_size is None or train_size <= x_train[train_idx].shape[0]:
         t_x_train = x_train[train_idx][:train_size]
         ty_train_tmp = y_train[train_idx][:train_size]
@@ -87,45 +87,45 @@ def split_data(x_train,y_train,cls,C,train_size,one_hot):
     if one_hot:
         t_y_train = np.zeros((ty_train_tmp.shape[0],C))       
         for c in range(C):           
-            t_y_train[(ty_train_tmp==cls[c]).reshape(-1),c] = 1
+            t_y_train[(ty_train_tmp==clss[c]).reshape(-1),c] = 1
     else:
         t_y_train = ty_train_tmp
            
     return t_x_train,t_y_train
 
 
-def gen_class_split_data(seed,train_size,test_size,x_train,y_train,x_test,y_test,cls=None,one_hot=True,C=2):
+def gen_class_split_data(seed,train_size,test_size,x_train,y_train,x_test,y_test,clss=None,one_hot=True,C=2):
     
-    if cls is None:
+    if clss is None:
         np.random.seed(seed)
         K = int(np.max(y_train)+1)
-        cls = np.random.choice(K,size=C,replace=False)
-    print('select classes',cls)
+        clss = np.random.choice(K,size=C,replace=False)
+    print('select classes',clss)
     #print('one hot',one_hot)
-    t_x_train,t_y_train = split_data(x_train,y_train,cls,C,train_size,one_hot)
-    if test_size > 0:
-        t_x_test,t_y_test = split_data(x_test,y_test,cls,C,test_size,one_hot)
+    t_x_train,t_y_train = split_data(x_train,y_train,clss,C,train_size,one_hot)
+    if test_size is None or test_size > 0:
+        t_x_test,t_y_test = split_data(x_test,y_test,clss,C,test_size,one_hot)
     else:
         t_x_test,t_y_test = None,None
 
     return t_x_train,t_y_train,t_x_test,t_y_test
 
 
-def gen_class_split_data_with_noise(seed,train_size,test_size,x_train,y_train,x_test,y_test,cls=None,cls_ns=None,ns=0.1):
+def gen_class_split_data_with_noise(seed,train_size,test_size,x_train,y_train,x_test,y_test,clss=None,cls_ns=None,ns=0.1):
     np.random.seed(seed)
-    if cls is None:
-        cls = np.random.choice(y_test.shape[1],size=2,replace=False)
-    print('select classes',cls)
+    if clss is None:
+        clss = np.random.choice(y_test.shape[1],size=2,replace=False)
+    print('select classes',clss)
 
     C = y_train.max()+1
-    if cls_ns is None:
+    if clss_ns is None:
         cls_ns = list(range(C))
 
-    for c in cls:
+    for c in clss:
         cls_ns.remove(c)
     print('noise classes',cls_ns)
 
-    t_x_train,t_y_train,t_x_test,t_y_test = gen_class_split_data(seed,train_size,test_size,x_train,y_train,x_test,y_test,cls,one_hot=False)
+    t_x_train,t_y_train,t_x_test,t_y_test = gen_class_split_data(seed,train_size,test_size,x_train,y_train,x_test,y_test,clss,one_hot=False)
     if len(cls_ns)>0:
         noise_train_size = int(t_x_train.shape[0] * ns)
         noise_x = np.random.normal(size=(noise_train_size,x_train.shape[1])).astype(np.float32)
@@ -341,7 +341,7 @@ def gen_next_task_data(task_name,X_TRAIN,Y_TRAIN,X_TEST,Y_TEST,sd=0,cl_n=2,out_d
         x_train_task,x_test_task = gen_permuted_data(sd,X_TRAIN,X_TEST)
         y_train_task = Y_TRAIN
         y_test_task = Y_TEST
-        cls = None
+        clss = None
 
     elif 'cross_split' in task_name:
         x_trains,y_trains,x_tests,y_tests = [],[],[],[]
@@ -364,21 +364,21 @@ def gen_next_task_data(task_name,X_TRAIN,Y_TRAIN,X_TEST,Y_TEST,sd=0,cl_n=2,out_d
         y_test_task = np.vstack(y_tests)
 
         cl_k += 1
-        cls = None
+        clss = None
 
     elif 'split' in task_name:
-        cls = cl_cmb[cl_k:cl_k+cl_n]
+        clss = cl_cmb[cl_k:cl_k+cl_n]
         if num_heads > 1:
-            x_train_task,y_train_task,x_test_task,y_test_task = gen_class_split_data(sd,None,None,X_TRAIN,Y_TRAIN,X_TEST,Y_TEST,cls,C=cl_n)
+            x_train_task,y_train_task,x_test_task,y_test_task = gen_class_split_data(sd,None,None,X_TRAIN,Y_TRAIN,X_TEST,Y_TEST,clss,C=cl_n)
         else:   
-            x_train_task,y_train_task,x_test_task,y_test_task = gen_class_split_data(sd,None,None,X_TRAIN,Y_TRAIN,X_TEST,Y_TEST,cls,one_hot=False,C=cl_n)
+            x_train_task,y_train_task,x_test_task,y_test_task = gen_class_split_data(sd,None,None,X_TRAIN,Y_TRAIN,X_TEST,Y_TEST,clss,one_hot=False,C=cl_n)
             y_train_task = one_hot_encoder(y_train_task,out_dim)
             y_test_task = one_hot_encoder(y_test_task,out_dim) 
         
         cl_k+=cl_n
 
 
-    return x_train_task,y_train_task,x_test_task,y_test_task,cl_k,cls
+    return x_train_task,y_train_task,x_test_task,y_test_task,cl_k,clss
 
 def load_task_data(task_name,DATA_DIR,TRAIN_SIZE=5000,TEST_SIZE=1000,dataset='mnist',out_dim=10):
     if 'permuted' in task_name:

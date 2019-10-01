@@ -773,3 +773,86 @@ def forward_cifar_model(x,W,local_rp=False):
     h = tf.reshape(h,shape=[-1,h.shape[1]*h.shape[2]*h.shape[3]])
 
     return h
+
+
+def get_model_FIM(model, sess=None, var_type='logvar'):
+    """
+    Only for Gaussian BNN.
+    get FIM of BNN parameters' mean, which is the inverse of variance;
+    FIM of parameters' variance is constant.
+    
+    Arguments:
+        model {BCL_BNN} -- instance of BCL_BNN
+    """
+    W_FIM, B_FIM = [], []
+    for w,b in zip(model.qW, model.qB):
+        if var_type == 'logvar':
+            w_var = -model.parm_var[w][1]
+            b_var = -model.parm_var[b][1]
+        
+        elif var_type == 'common':
+            w_var = 1./tf.square(tf.nn.softplus(model.parm_var[w][1]))
+            b_var = 1./tf.square(tf.nn.softplus(model.parm_var[b][1]))
+
+        W_FIM.append(w_var)
+        B_FIM.append(b_var)
+    if sess:
+        W_FIM,B_FIM = sess.run([W_FIM,B_FIM])
+
+    return W_FIM+B_FIM
+
+
+def square_sum_list(X):
+    sum = 0.
+    for x in X:
+        sum += tf.reduce_sum(tf.square(x))
+    return sum
+
+def dot_prod_list(X,Y):
+    sum = 0.
+    for x,y in zip(X,Y):
+       sum += tf.reduce_sum(x*y)
+    return sum 
+
+
+def calc_FIM_similarity(model_a, model_b,sim_type='cos',sess=None):
+
+    from cl_models import BCL_BNN 
+    
+    if isinstance(model_a, BCL_BNN):
+        FIM_a = get_model_FIM(model_a,sess=sess)
+    elif isinstance(model_a,list):
+        FIM_a = model_a
+    else:
+        raise TypeError('arg model_a should be an instance of BCL_BNN or list')
+
+    if isinstance(model_b, BCL_BNN):
+        FIM_b = get_model_FIM(model_b,sess=sess)
+    elif isinstance(model_b,list):
+        FIM_b = model_b
+    else:
+        raise TypeError('arg model_a should be an instance of BCL_BNN or list')
+
+    if sim_type == 'cos':
+        norm_a = tf.sqrt(square_sum_list(FIM_a))
+        norm_b = tf.sqrt(square_sum_list(FIM_b))
+
+        sim = dot_prod_list(FIM_a,FIM_b)/(norm_a*norm_b)
+    elif sim_type == 'euc':
+        sum = 0
+        for fa,fb in zip(FIM_a,FIM_b):
+            sum += tf.reduce_sum(tf.square(fa-fb))
+        sim = tf.sqrt(sum)
+
+    if sess:
+        sim = sess.run(sim)
+    
+    return sim
+
+
+
+
+        
+
+    
+
