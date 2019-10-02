@@ -81,6 +81,7 @@ def gen_stein_coreset(init,core_y_data,qW,qB,n_samples,ac_fn,conv_W=None,LR=Fals
     if LR:
         stein_core_y = Normal(loc=tf.matmul(stein_core_x,qW)+qB,scale=noise_std)
     elif conv_W is not None:
+        ## to do: change to general function ##
         h = forward_cifar_model(stein_core_x,conv_W)
         stein_core_y = forward_nets(qW,qB,h,ac_fn=ac_fn,bayes=True,num_samples=n_samples)
     else:

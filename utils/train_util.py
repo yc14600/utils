@@ -297,13 +297,13 @@ def build_toy_dataset(mtype,N,M,K,s_std=1,s_mean=0,d_std=1,d_mean=0,noise_std=0.
 
 
     
-def config_optimizer(starter_learning_rate,step_name,grad_type,decay=None,beta1=0.9,scope=None):
+def config_optimizer(starter_learning_rate,step_name,grad_type='adam',decay=None,beta1=0.9,scope=None):
 
     if not scope:
         scope = step_name.split('_')[0]
     print('config optimizer, grad type {}, scope {}'.format(grad_type,scope))
-    with tf.variable_scope(scope):
-        step = tf.Variable(0, trainable=False, name=step_name)
+    with tf.variable_scope(scope,reuse=tf.AUTO_REUSE):
+        step = tf.get_variable(initializer=0, trainable=False, name=step_name)
         if decay is not None:
             learning_rate = tf.train.exponential_decay(starter_learning_rate,
                                                 step,
@@ -540,7 +540,8 @@ def reinitialize_scope(scope,sess):
         scope = [scope]
     tmp = []
     for s in scope:
-        for v in tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=s):
+        for v in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=s):
+            #print('reinit',v)
             tmp.append(v)
     print('reinit var list with length {} in scope {}'.format(len(tmp), scope))
     tf.variables_initializer(tmp).run(session=sess)

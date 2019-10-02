@@ -850,6 +850,55 @@ def calc_FIM_similarity(model_a, model_b,sim_type='cos',sess=None):
     return sim
 
 
+def get_acts_dist(x,w_mu,w_sigma,b_mu,b_sigma):
+    ## Only support isotropic Gaussian of weights ##
+    #print('x {}, w {}, b {}'.format(x.shape,w_mu.shape,b_mu.shape))
+    m = tf.matmul(x,w_mu) + b_mu
+    nu_sq = tf.matmul(tf.square(x),tf.square(w_sigma)) + tf.square(b_sigma)
+    a = Normal(loc=m, scale=tf.sqrt(nu_sq))
+    return a
+
+
+def calc_marginal(a_dist,a_hat):
+    """
+    Calc prob of marginal distritbuions of activations of intermediate layers.
+    p(a) = E_{p(x)}[p(a|x)], where a_dist is p(a|x) for all x, a_hat is samples of a
+
+    Arguments:
+        a_dist {distributions} -- the distribution object at least includes method prob()
+        a_hat {tensor} -- 2D tensor
+    
+    Returns:
+        [tensor] -- log_prob
+    """
+    assert(len(a_hat.shape)==2)
+    a_hat = tf.expand_dims(a_hat,axis=1)
+    prob = tf.reduce_mean(a_dist.prob(a_hat),axis=1)
+    return prob
+
+def calc_log_marginal(a_dist,a_hat):
+    return tf.log(calc_marginal(a_dist, a_hat))
+
+
+
+class Wrapped_Marginal:
+
+    def __init__(self,a_dist):
+        self.a_dist = a_dist
+        self._value = a_dist.sample()
+
+    def prob(self,a_hat):
+        return calc_marginal(self.a_dist,a_hat)
+
+    def log_prob(self,a_hat):
+        return calc_log_marginal(self.a_dist,a_hat)
+
+    def sample(self):
+        return self.a_dist.sample()
+
+    def value(self):
+        return self._value
+
 
 
         
