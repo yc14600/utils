@@ -14,7 +14,7 @@ path = os.getcwd()
 import sys
 sys.path.append(path+'/../')
 
-from utils.train_util import get_next_batch,expand_nsamples
+from utils.train_util import get_next_batch,expand_nsamples,shuffle_data
 from utils.model_util import *
 from edward.models import Normal,OneHotCategorical,MultivariateNormalTriL
 from hsvi.methods.svgd import SVGD
@@ -26,6 +26,32 @@ def update_distance(dists, x_train, current_id):
         current_dist = np.linalg.norm(x_train[i,:]-x_train[current_id,:])
         dists[i] = np.minimum(current_dist, dists[i])
     return dists
+
+
+def gen_random_coreset(x_train,y_train,coreset_size,clss=None):
+    if clss is None:
+        cln = np.sum(y_train.sum(axis=0)>1)
+        clss = range(cln) 
+    else:
+        cln = len(clss)
+    n_c = int(coreset_size/cln)
+    r_c = coreset_size - n_c*cln 
+    print('cln',cln)
+        
+    core_y, core_x = [],[]
+    for c in clss:
+        cids = y_train[:,c]==1
+        core_y.append(y_train[cids][:n_c])
+        core_x.append(x_train[cids][:n_c])
+    if r_c > 0:
+        core_y.append(y_train[:r_c])
+        core_x.append(x_train[:r_c])
+    core_y = np.vstack(core_y)
+    core_x = np.vstack(core_x)
+    core_y,core_x = shuffle_data(core_y,core_x)
+
+    return core_x, core_y
+
 
 def gen_kcenter_coreset(x_train, coreset_size):
     # Select K centers from (x_train, y_train) and add to current coreset (x_coreset, y_coreset)
