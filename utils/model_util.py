@@ -899,6 +899,10 @@ class Wrapped_Marginal:
     def value(self):
         return self._value
 
+    def kl_divergence(self,dist_b):
+        kl = tf.reduce_mean(self.log_prob(self.value()))-tf.reduce_mean(dist_b.log_prob(self.value()))
+        return kl
+
 
 
         
