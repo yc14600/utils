@@ -814,6 +814,33 @@ def dot_prod_list(X,Y):
        sum += tf.reduce_sum(x*y)
     return sum 
 
+def mean_list(X):
+    m = [0.]*len(X[0])
+    for x in X:
+        for xi in x:
+            mi = m.pop(0)
+            mi += xi
+            m.append(mi)
+    m = [mi/len(X) for mi in m]
+    return m
+
+def calc_similarity(vec_a, vec_b, sim_type='cos',sess=None):
+    if sim_type == 'cos':
+        norm_a = tf.sqrt(square_sum_list(vec_a))
+        norm_b = tf.sqrt(square_sum_list(vec_b))
+
+        sim = dot_prod_list(vec_a,vec_b)/(norm_a*norm_b)
+    elif sim_type == 'euc':
+        sum = 0
+        for fa,fb in zip(vec_a,vec_b):
+            sum += tf.reduce_sum(tf.square(fa-fb))
+        sim = tf.sqrt(sum)
+
+    if sess:
+        sim = sess.run(sim) 
+
+    return sim
+
 
 def calc_FIM_similarity(model_a, model_b,sim_type='cos',sess=None):
 
@@ -833,6 +860,8 @@ def calc_FIM_similarity(model_a, model_b,sim_type='cos',sess=None):
     else:
         raise TypeError('arg model_a should be an instance of BCL_BNN or list')
 
+
+    '''
     if sim_type == 'cos':
         norm_a = tf.sqrt(square_sum_list(FIM_a))
         norm_b = tf.sqrt(square_sum_list(FIM_b))
@@ -846,8 +875,10 @@ def calc_FIM_similarity(model_a, model_b,sim_type='cos',sess=None):
 
     if sess:
         sim = sess.run(sim)
+    '''
     
-    return sim
+    return calc_similarity(FIM_a,FIM_b,sim_type=sim_type,sess=sess)
+
 
 
 def get_acts_dist(x,w_mu,w_sigma,b_mu,b_sigma):

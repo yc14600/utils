@@ -135,3 +135,22 @@ def gen_noise_samples_by_range(data, noise_p_range, noise_dim_range, in_place=Fa
             n_data = insert_noise(data,p,d,in_place)
             save_samples(save_path,[n_data],file_name=['noise_f'+str(int(p*100))+'_nd'+str(d)+'_samples'])
     return
+
+
+def aggregate_file(path,fname):
+    """aggregate the files with a same name in different directories under path
+    
+    Arguments:
+        path {str} -- path to directories need to be aggregated
+        fname {str} -- file name of aggregated files
+    """
+    sd = os.listdir(path)
+    data = []
+    print('aggregate path')
+    for s in sd:
+        print(s)
+        if os.path.isdir(s):
+            ds = np.loadtxt(os.path.join(path,s,fname),delimiter=',')
+            data.append(ds)
+    return data
+        

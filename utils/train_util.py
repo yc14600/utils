@@ -111,7 +111,7 @@ def gen_class_split_data(seed,train_size,test_size,x_train,y_train,x_test,y_test
     return t_x_train,t_y_train,t_x_test,t_y_test
 
 
-def gen_class_split_data_with_noise(seed,train_size,test_size,x_train,y_train,x_test,y_test,clss=None,cls_ns=None,ns=0.1):
+def gen_class_split_data_with_noise(seed,train_size,test_size,x_train,y_train,x_test,y_test,clss=None,clss_ns=None,ns=0.1):
     np.random.seed(seed)
     if clss is None:
         clss = np.random.choice(y_test.shape[1],size=2,replace=False)
@@ -303,7 +303,7 @@ def config_optimizer(starter_learning_rate,step_name,grad_type='adam',decay=None
         scope = step_name.split('_')[0]
     print('config optimizer, grad type {}, scope {}'.format(grad_type,scope))
     with tf.variable_scope(scope,reuse=tf.AUTO_REUSE):
-        step = tf.get_variable(initializer=0, trainable=False, name=step_name)
+        step = tf.get_variable(initializer=0, dtype=tf.int32, trainable=False, name=step_name)
         if decay is not None:
             learning_rate = tf.train.exponential_decay(starter_learning_rate,
                                                 step,
@@ -434,13 +434,6 @@ def set_ac_fn(ac_name):
 
     return ac_fn
 
-def get_var_list(scope):
-    tmp = set()
-    for v in tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope):
-        tmp.add(v)
-    var_list = list(tmp)
-
-    return var_list
         
 def shuffle_data(*X):
     for x in X:
@@ -535,14 +528,22 @@ def load_cifar10(path=None):
     return (x_train, y_train), (x_test, y_test)
 
 
+def get_vars_by_scope(scope,keys=tf.GraphKeys.TRAINABLE_VARIABLES):
+    tmp = set()
+    for v in tf.get_collection(keys, scope=scope):
+        tmp.add(v)
+    return list(tmp)
+
+
 def reinitialize_scope(scope,sess):
     if isinstance(scope,str):
         scope = [scope]
+    
     tmp = []
     for s in scope:
-        for v in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=s):
-            #print('reinit',v)
-            tmp.append(v)
+        v = get_vars_by_scope(keys=tf.GraphKeys.GLOBAL_VARIABLES,scope=s)
+        tmp += v
+
     print('reinit var list with length {} in scope {}'.format(len(tmp), scope))
     tf.variables_initializer(tmp).run(session=sess)
     return
