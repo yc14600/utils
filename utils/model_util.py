@@ -711,6 +711,38 @@ def gen_trans_parms(q_list,name,transition_parm={},transition_parm_ng={},task_va
         trans_var_cfg[pW] = tW
     return transition_parm,transition_parm_ng,task_var_cfg,trans_var_cfg
 
+
+def build_bayes_conv_net(x,batch_size,net_shape,strides,pooling=True,local_rpm=False,initialization=None):
+    conv_W = []
+    parm_var_dict = {}
+
+    print('build conv net')
+    h = x
+    for l, filter_shape, stride in enumerate(zip(net_shape,strides)):
+        h,w,parm_var = build_bayesian_conv_bn_acfn(h,l,filter_shape,strides=stride,local_rpm=local_rpm,initialization=initialization)
+        conv_W.append(w)
+        parm_var_dict.update(parm_var)
+        print('layer {}: {}'.format(l,h.shape))    
+        if pooling and (l+1) % 2 == 0:   
+            h = tf.nn.max_pool(value=h,ksize=[1,2,2,1],strides=stride,padding='SAME')
+
+    h = tf.reshape(h,shape=[-1,h.shape[1]*h.shape[2]*h.shape[3]])
+    print('flatten',h.shape)
+    return conv_W,parm_var_dict,h
+
+
+def forward_bayes_conv_net(x,W,strides,pooling=True):
+    h = x
+    for l,w,stride in enumerate(zip(W,strides)):
+        h = forward_conv2d_bn_acfn(h,w,stride,padding='SAME')
+        if (l+1)%2 == 0:
+            h = tf.nn.max_pool(value=h,ksize=[1,2,2,1],strides=stride,padding='SAME')
+    
+    h = tf.reshape(h,shape=[-1,h.shape[1]*h.shape[2]*h.shape[3]])
+
+    return h
+
+
 def cifar_model(x,batch_size,local_rpm=False,initialization=None):
     conv_W = []
     parm_var_dict = {}
