@@ -735,7 +735,7 @@ def forward_bayes_conv_net(x,W,strides,pooling=True):
     h = x
     for l,(w,stride) in enumerate(zip(W,strides)):
         h = forward_conv2d_bn_acfn(h,w,stride,padding='SAME')
-        if (l+1)%2 == 0:
+        if pooling and (l+1)%2 == 0:
             h = tf.nn.max_pool(value=h,ksize=[1,2,2,1],strides=stride,padding='SAME')
     
     h = tf.reshape(h,shape=[-1,h.shape[1]*h.shape[2]*h.shape[3]])
