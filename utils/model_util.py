@@ -718,7 +718,7 @@ def build_bayes_conv_net(x,batch_size,net_shape,strides,pooling=True,local_rpm=F
 
     print('build conv net')
     h = x
-    for l, filter_shape, stride in enumerate(zip(net_shape,strides)):
+    for l, (filter_shape, stride) in enumerate(zip(net_shape,strides)):
         h,w,parm_var = build_bayesian_conv_bn_acfn(h,l,filter_shape,strides=stride,local_rpm=local_rpm,initialization=initialization)
         conv_W.append(w)
         parm_var_dict.update(parm_var)

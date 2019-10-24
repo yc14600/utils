@@ -10,6 +10,8 @@ import os
 import tensorflow as tf 
 import pickle
 import subprocess
+
+from collections.abc import Iterable
 from tensorflow.python.platform import gfile
 
 from .train_util import one_hot_encoder, get_next_batch
@@ -76,6 +78,10 @@ def save_samples(path,samples,file_name=None):
 
     for s,fname in zip(samples,file_name): 
         #print(s.shape)
+        
+        if not s.flags.c_contiguous:
+            print('c_contiguous',s.flags.c_contiguous)
+            s = np.ascontiguousarray(s)
         with gzip.open(path+fname+'.gz', 'wb') as f:
             f.write(s)
 
