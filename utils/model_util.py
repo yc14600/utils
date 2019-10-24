@@ -733,7 +733,7 @@ def build_bayes_conv_net(x,batch_size,net_shape,strides,pooling=True,local_rpm=F
 
 def forward_bayes_conv_net(x,W,strides,pooling=True):
     h = x
-    for l,w,stride in enumerate(zip(W,strides)):
+    for l,(w,stride) in enumerate(zip(W,strides)):
         h = forward_conv2d_bn_acfn(h,w,stride,padding='SAME')
         if (l+1)%2 == 0:
             h = tf.nn.max_pool(value=h,ksize=[1,2,2,1],strides=stride,padding='SAME')
