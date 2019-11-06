@@ -148,20 +148,36 @@ def linear(x,w,b):
     return tf.add(tf.matmul(x,w),b)
 
 
-def build_dense_layer(x,l,d1,d2,initialization=None,ac_fn=tf.nn.relu,batch_norm=False,training=None,scope=None,reg=None):
+def build_dense_layer(x,l,d1,d2,initialization=None,ac_fn=tf.nn.relu,batch_norm=False,training=None,scope=None,reg=None,bayes=False,num_samples=1):
     print('dense layer',l,'batch norm',batch_norm,'activation',ac_fn,'regularizer',reg)
-    w,b = define_dense_layer(l,d1,d2,initialization,reg)
-    h = linear(x,w,b)
+    if bayes:
+        w,b,ts,parm_var = define_gaussian_dense_layer(l,'logvar',d1,d2,initialization)
+        ew = w.sample(num_samples)
+        eb = b.sample(num_samples)
+        h = tf.einsum('sbi,sij->sbj',x,ew)+tf.expand_dims(eb,1)
+    else:
+        w,b = define_dense_layer(l,d1,d2,initialization,reg)
+        h = linear(x,w,b)
     if batch_norm:
         h = tf.contrib.layers.batch_norm(h,decay=0.9,updates_collections=None,epsilon=1e-5,scale=True,is_training=training,scope=scope+'/bn/layer'+str(l))
     if ac_fn is not None:
         h = ac_fn(h)
-    
-    return w,b,h
+    if bayes:
+        return w,b,h,ts,parm_var
+    else:
+        return w,b,h
     
 
-def restore_dense_layer(x,l,w,b,ac_fn=tf.nn.relu,batch_norm=False,training=None,scope=''):
-    h = linear(x,w,b)
+def restore_dense_layer(x,l,w,b,ac_fn=tf.nn.relu,batch_norm=False,training=None,scope='',bayes=False,num_samples=1):
+    if bayes:
+        h = tf.expand_dims(x,axis=0)
+        h = tf.tile(h,[num_samples,1,1])
+        ew = w.sample(num_samples)
+        eb = b.sample(num_samples)
+        #print('h {},ew {}, eb {}'.format(h.shape,ew.shape,eb.shape))
+        h = tf.einsum('sbi,sij->sbj',h,ew)+tf.expand_dims(eb,1)
+    else:
+        h = linear(x,w,b)
     if batch_norm:
         h = tf.contrib.layers.batch_norm(h,decay=0.9,updates_collections=None,epsilon=1e-5,scale=True,is_training=training,scope=scope+'/bn/layer'+str(l))
 
@@ -290,8 +306,8 @@ def define_conv_layer(l,filter_shape,initialization=None,deconv=False,reg=None):
         w_var = tf.get_variable(w_name,shape=filter_shape,dtype=tf.float32,initializer=tf.random_normal_initializer(mean=0.,stddev=1e-6),regularizer=regularizer)
         b_var = tf.get_variable(b_name, b_shape, initializer=tf.constant_initializer(0.0),regularizer=regularizer)
     else:
-        w0 = initialization['w']
-        b0 = initialization['b']
+        w0 = initialization['cw']
+        b0 = initialization['cb']
         if isinstance(w0, collections.Iterable):
             w0 = w0[l]
         if isinstance(b0, collections.Iterable):
@@ -378,7 +394,7 @@ def build_bayesian_conv_bn_acfn(x,l,filter_shape,strides=[1,2,2,1],padding='SAME
     return h,w,parm_var
 
 
-def compute_head_output(h,w,b,bayes=False,share='isotropic',num_samples=10,local_rpm=False):
+def compute_head_output(h,w,b,bayes=False,share='isotropic',num_samples=10,local_rpm=False,output_ac=tf.nn.softmax,bayes_output=False):
     ew,eb = None, None
     if bayes:
         if local_rpm:
@@ -403,34 +419,43 @@ def compute_head_output(h,w,b,bayes=False,share='isotropic',num_samples=10,local
             if share == 'row_covariance':
                 tew = tf.reshape(ew,[-1,ew.shape[2].value,ew.shape[1].value])
                 z = tf.einsum('sbi,sij->sbj',h,tew)+tf.expand_dims(eb,1)
-                h = OneHotCategorical(logits=z)
+                #h = OneHotCategorical(logits=z)
 
             else:                       
                 z = tf.einsum('sbi,sij->sbj',h,ew)+tf.expand_dims(eb,1)
+            if bayes_output:
                 h = OneHotCategorical(logits=z)
+            elif output_ac:
+                h = output_ac(z)
+            else:
+                h = z
     else:
-        h = tf.nn.softmax(tf.add(tf.matmul(h,w),b))
+        if output_ac:
+            h = output_ac(tf.add(tf.matmul(h,w),b))
+        else:
+            h = tf.add(tf.matmul(h,w),b)
     return h,ew,eb
 
 
-def compute_layer_output(input,w,b,bayes=False,ac_fn=tf.nn.relu,share='isotropic',num_samples=10,head=False,num_heads=1,local_rpm=False,parm_var=None):
+def compute_layer_output(input,w,b,bayes=False,ac_fn=tf.nn.relu,share='isotropic',num_samples=10,head=False,\
+                        num_heads=1,local_rpm=False,parm_var=None,output_ac=tf.nn.softmax,bayes_output=False):
     h = input
     ew, eb = None, None
     if head:
         if num_heads == 1:
-            h,ew,eb = compute_head_output(h,w,b,bayes,share,num_samples,local_rpm=local_rpm)
+            h,ew,eb = compute_head_output(h,w,b,bayes,share,num_samples,local_rpm=local_rpm,output_ac=output_ac,bayes_output=bayes_output)
         elif num_heads > 1:
             Y = []
             if bayes:
                 ew, eb = [], []
                 for wi,bi in zip(w,b):
-                    hi,ewi,ebi = compute_head_output(h,wi,bi,bayes,share,num_samples,local_rpm=local_rpm)
+                    hi,ewi,ebi = compute_head_output(h,wi,bi,bayes,share,num_samples,local_rpm=local_rpm,output_ac=output_ac,bayes_output=bayes_output)
                     Y.append(hi)
                     ew.append(ewi)
                     eb.append(ebi)
             else:
                 for wi,bi in zip(w,b):
-                    hi,ewi,ebi = compute_head_output(h,wi,bi,bayes,share,num_samples)
+                    hi,ewi,ebi = compute_head_output(h,wi,bi,bayes,share,num_samples,output_ac=output_ac,bayes_output=bayes_output)
                     Y.append(hi)
             return Y,ew,eb
     # middle layers   
@@ -467,7 +492,8 @@ def compute_layer_output(input,w,b,bayes=False,ac_fn=tf.nn.relu,share='isotropic
 
 
 def build_nets(net_shape,input,bayes=False,ac_fn=tf.nn.relu,share='isotropic',initialization=None,\
-                num_samples=1,gaussian_type='logvar',num_heads=1,dropout=None,local_rpm=False):
+                num_samples=1,gaussian_type='logvar',num_heads=1,dropout=None,local_rpm=False,\
+                output_ac=tf.nn.softmax,bayes_output=True):
         W = []
         B = []
         parm_var = {}
@@ -499,7 +525,8 @@ def build_nets(net_shape,input,bayes=False,ac_fn=tf.nn.relu,share='isotropic',in
             ## compute head layer output
             if l == len(net_shape) - 2:
                 if num_heads == 1:
-                    h,ew,eb = compute_layer_output(h,w,b,bayes,ac_fn,share,num_samples,head=True,num_heads=num_heads,local_rpm=local_rpm)
+                    h,ew,eb = compute_layer_output(h,w,b,bayes,ac_fn,share,num_samples,head=True,num_heads=num_heads,\
+                                                    local_rpm=local_rpm,output_ac=output_ac,bayes_output=bayes_output)
                 elif num_heads > 1:
                     W_last = [w]
                     B_last = [b]                    
@@ -514,7 +541,8 @@ def build_nets(net_shape,input,bayes=False,ac_fn=tf.nn.relu,share='isotropic',in
                         W_last.append(w)
                         B_last.append(b)
 
-                    Y,eW,eB = compute_layer_output(h,W_last,B_last,bayes,ac_fn,share,num_samples,head=True,num_heads=num_heads,local_rpm=local_rpm)
+                    Y,eW,eB = compute_layer_output(h,W_last,B_last,bayes,ac_fn,share,num_samples,head=True,num_heads=num_heads,\
+                                                    local_rpm=local_rpm,output_ac=output_ac,bayes_output=bayes_output)
                     W_list = [W+[wi] for wi in W_last]
                     B_list = [B+[bi] for bi in B_last]
                     H_list = [H+[yi] for yi in Y]
@@ -535,7 +563,9 @@ def build_nets(net_shape,input,bayes=False,ac_fn=tf.nn.relu,share='isotropic',in
 
         return W,B,H,TS,W_samples,B_samples,parm_var
 
-def forward_nets(W,B,input,ac_fn=tf.nn.tanh,bayes=False,num_samples=1,local_rpm=False,parm_var=None,output_ac=tf.nn.softmax):
+def forward_nets(W,B,input,ac_fn=tf.nn.relu,bayes=False,num_samples=1,local_rpm=False,parm_var=None,\
+                    output_ac=tf.nn.softmax,bayes_output=False):
+    H = []
     if bayes and not local_rpm:
         h = tf.expand_dims(input,axis=0)
         h = tf.tile(h,[num_samples,1,1])
@@ -547,6 +577,7 @@ def forward_nets(W,B,input,ac_fn=tf.nn.tanh,bayes=False,num_samples=1,local_rpm=
             for l in range(len(B)-1):
                 z = local_reparam(h,W[l],parm_var)+B[l]
                 h = ac_fn(z)
+                H.append(h)
             
             z = local_reparam(h,W[l],parm_var)+B[l]          
         else:
@@ -555,25 +586,33 @@ def forward_nets(W,B,input,ac_fn=tf.nn.tanh,bayes=False,num_samples=1,local_rpm=
                 eb = B[l].sample(num_samples)
                 z = tf.einsum('sbi,sij->sbj',h,ew)+tf.expand_dims(eb,1)
                 h = ac_fn(z)
+                H.append(h)
             ew = W[-1].sample(num_samples)
             eb = B[-1].sample(num_samples)
             z = tf.einsum('sbi,sij->sbj',h,ew)+tf.expand_dims(eb,1)
-        h = OneHotCategorical(logits=z)
+        if bayes_output:
+            h = OneHotCategorical(logits=z)
+        else:
+            h = output_ac(z)
+        H.append(h)
     else:
         
         for l in range(len(B)-1):
             h = forward_dense_layer(h,W[l],B[l],ac_fn) #ac_fn(tf.add(tf.matmul(h,W[l]),B[l]))
-        
+            H.append(h)
         h = forward_dense_layer(h,W[-1],B[-1],output_ac)#tf.nn.softmax(tf.add(tf.matmul(h,W[-1]),B[-1]))
-        
-    return h
+        H.append(h)
+    return H
 
 
 def forward_dense_layer(x,w,b,ac_f):
-    return ac_f(tf.add(tf.matmul(x,w),b))
+    if ac_f:
+        return ac_f(tf.add(tf.matmul(x,w),b))
+    else:
+        return tf.add(tf.matmul(x,w),b)
 
 
-def forward_mean_nets(qW,qB,x_ph,ac_fn,sess,share_type='isotropic'):
+def forward_mean_nets(qW,qB,x_ph,ac_fn,sess,share_type='isotropic',output_ac=tf.nn.softmax,bayes_output=False):
     mW,mB = [],[]
     for l in range(len(qW)):
         if share_type == 'row_covariance':
@@ -582,7 +621,7 @@ def forward_mean_nets(qW,qB,x_ph,ac_fn,sess,share_type='isotropic'):
             mW.append(sess.run(qW[l].loc))      
         mB.append(sess.run(qB[l].loc))
     
-    my = forward_nets(mW,mB,x_ph,ac_fn=ac_fn)
+    my = forward_nets(mW,mB,x_ph,ac_fn=ac_fn,output_ac=output_ac,bayes_output=bayes_output)
     return my
 
 def fit_model(num_iter, x_train, y_train,x_ph,y_ph,batch_size,train_step,loss,sess, print_iter=100):
@@ -686,9 +725,9 @@ def test_tasks(t,test_sets,qW,qB,num_heads,x_ph,ac_fn,batch_size,sess,conv_h=Non
     if num_heads > 1:  
         my = []
         for k in range(t+1):
-            my.append(forward_mean_nets(qW[k],qB[k],in_x,ac_fn,sess))
+            my.append(forward_mean_nets(qW[k],qB[k],in_x,ac_fn,sess)[-1])
     else:
-        my = forward_mean_nets(qW,qB,in_x,ac_fn,sess)
+        my = forward_mean_nets(qW,qB,in_x,ac_fn,sess)[-1]
         
     for k,ts in enumerate(test_sets):   
         if num_heads > 1:
@@ -712,10 +751,11 @@ def gen_trans_parms(q_list,name,transition_parm={},transition_parm_ng={},task_va
     return transition_parm,transition_parm_ng,task_var_cfg,trans_var_cfg
 
 
-def build_bayes_conv_net(x,batch_size,net_shape,strides,pooling=True,local_rpm=False,initialization=None):
+def build_bayes_conv_net(x,batch_size,net_shape,strides=None,pooling=True,local_rpm=False,initialization=None):
     conv_W = []
     parm_var_dict = {}
-
+    if strides is None:
+        strides = [1,2,2,1]*len(net_shape)
     print('build conv net')
     h = x
     for l, (filter_shape, stride) in enumerate(zip(net_shape,strides)):
