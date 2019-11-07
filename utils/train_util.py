@@ -103,7 +103,7 @@ def gen_class_split_data(seed,train_size,test_size,x_train,y_train,x_test,y_test
     print('select classes',clss)
     #print('one hot',one_hot)
     t_x_train,t_y_train = split_data(x_train,y_train,clss,C,train_size,one_hot)
-    if test_size is None or test_size > 0:
+    if x_test is not None: #if test_size is None or test_size > 0:
         t_x_test,t_y_test = split_data(x_test,y_test,clss,C,test_size,one_hot)
     else:
         t_x_test,t_y_test = None,None
@@ -436,10 +436,9 @@ def set_ac_fn(ac_name):
 
         
 def shuffle_data(*X):
-    for x in X:
-        N = x.shape[0]
-        idx = np.arange(N)
-        break
+    
+    N = X[0].shape[0]
+    idx = np.arange(N)
     
     np.random.shuffle(idx)  
     rt = [x[idx] for x in X]
@@ -535,13 +534,13 @@ def get_vars_by_scope(scope,keys=tf.GraphKeys.TRAINABLE_VARIABLES):
     return list(tmp)
 
 
-def reinitialize_scope(scope,sess):
+def reinitialize_scope(scope,sess,keys=tf.GraphKeys.GLOBAL_VARIABLES):
     if isinstance(scope,str):
         scope = [scope]
-    
+        
     tmp = []
     for s in scope:
-        v = get_vars_by_scope(keys=tf.GraphKeys.GLOBAL_VARIABLES,scope=s)
+        v = get_vars_by_scope(keys=keys,scope=s)
         tmp += v
 
     print('reinit var list with length {} in scope {}'.format(len(tmp), scope))

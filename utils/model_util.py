@@ -653,14 +653,17 @@ def predict(x_test,y_test,x_ph,y,batch_size,sess,regression=False):
                 
             #if regression:
             result.append(y_pred_prob)
-            
-            y_pred = np.argmax(y_pred_prob,axis=1)
-            correct += np.sum(np.argmax(y_batch,axis=1)==y_pred)
+            if not regression:
+                y_pred = np.argmax(y_pred_prob,axis=1)
+                correct += np.sum(np.argmax(y_batch,axis=1)==y_pred)
             
         #if regression:
-        result = np.vstack(result)        
-        acc = correct/y_test.shape[0]
-        return acc, result
+        result = np.vstack(result)  
+        if not regression:      
+            acc = correct/y_test.shape[0]
+            return acc, result
+        else:
+            return result
 
 
 def LinearRegression(x_ph,in_dim,out_dim,Bayes=True,initialization=None,num_samples=1,logistic=True,noise_std=0.1):
