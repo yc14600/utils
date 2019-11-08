@@ -302,8 +302,11 @@ def config_optimizer(starter_learning_rate,step_name,grad_type='adam',decay=None
     if not scope:
         scope = step_name.split('_')[0]
     print('config optimizer, grad type {}, scope {}'.format(grad_type,scope))
-    with tf.variable_scope(scope,reuse=tf.AUTO_REUSE):
-        step = tf.get_variable(initializer=0, dtype=tf.int32, trainable=False, name=step_name)
+    
+    #with tf.variable_scope(scope,reuse=tf.AUTO_REUSE):
+        #step = tf.get_variable(initializer=0, dtype=tf.int32, trainable=False, name=step_name)
+    with tf.variable_scope(scope):
+        step = tf.Variable(0, trainable=False, name=step_name)
         if decay is not None:
             learning_rate = tf.train.exponential_decay(starter_learning_rate,
                                                 step,
@@ -537,7 +540,7 @@ def get_vars_by_scope(scope,keys=tf.GraphKeys.TRAINABLE_VARIABLES):
 def reinitialize_scope(scope,sess,keys=tf.GraphKeys.GLOBAL_VARIABLES):
     if isinstance(scope,str):
         scope = [scope]
-        
+
     tmp = []
     for s in scope:
         v = get_vars_by_scope(keys=keys,scope=s)
