@@ -564,7 +564,7 @@ def build_nets(net_shape,input,bayes=False,ac_fn=tf.nn.relu,share='isotropic',in
         return W,B,H,TS,W_samples,B_samples,parm_var
 
 def forward_nets(W,B,input,ac_fn=tf.nn.relu,bayes=False,num_samples=1,local_rpm=False,parm_var=None,\
-                    output_ac=tf.nn.softmax,bayes_output=False):
+                    output_ac=tf.nn.softmax,bayes_output=True,*args,**kargs):
     H = []
     if bayes and not local_rpm:
         h = tf.expand_dims(input,axis=0)
@@ -600,7 +600,10 @@ def forward_nets(W,B,input,ac_fn=tf.nn.relu,bayes=False,num_samples=1,local_rpm=
         for l in range(len(B)-1):
             h = forward_dense_layer(h,W[l],B[l],ac_fn) #ac_fn(tf.add(tf.matmul(h,W[l]),B[l]))
             H.append(h)
-        h = forward_dense_layer(h,W[-1],B[-1],output_ac)#tf.nn.softmax(tf.add(tf.matmul(h,W[-1]),B[-1]))
+        if bayes_output:
+            h = OneHotCategorical(logits=linear(h,W[-1],B[-1]))
+        else:
+            h = forward_dense_layer(h,W[-1],B[-1],output_ac)#tf.nn.softmax(tf.add(tf.matmul(h,W[-1]),B[-1]))
         H.append(h)
     return H
 
@@ -612,7 +615,7 @@ def forward_dense_layer(x,w,b,ac_f):
         return tf.add(tf.matmul(x,w),b)
 
 
-def forward_mean_nets(qW,qB,x_ph,ac_fn,sess,share_type='isotropic',output_ac=tf.nn.softmax,bayes_output=False):
+def forward_mean_nets(qW,qB,x_ph,ac_fn,sess,share_type='isotropic',output_ac=tf.nn.softmax,bayes_output=True,*args,**kargs):
     mW,mB = [],[]
     for l in range(len(qW)):
         if share_type == 'row_covariance':
@@ -656,9 +659,12 @@ def predict(x_test,y_test,x_ph,y,batch_size,sess,regression=False):
             if not regression:
                 y_pred = np.argmax(y_pred_prob,axis=1)
                 correct += np.sum(np.argmax(y_batch,axis=1)==y_pred)
-            
+          
         #if regression:
         result = np.vstack(result)  
+        #print('y prob',result[:3])
+        #print('y pred',y_pred[:3])
+        #print('y test',y_test[:3])
         if not regression:      
             acc = correct/y_test.shape[0]
             return acc, result
@@ -718,8 +724,9 @@ def compute_diag_fisher(ll,parm_var):
     return fisher
 
 
-def test_tasks(t,test_sets,qW,qB,num_heads,x_ph,ac_fn,batch_size,sess,conv_h=None):
+def test_tasks(t,test_sets,qW,qB,num_heads,x_ph,ac_fn,batch_size,sess,conv_h=None,bayes=True,bayes_output=True):
     acc_record, pred_probs = [], []
+    forward_fc = forward_mean_nets if bayes else forward_nets
     if conv_h is not None:
         in_x = conv_h
     else:
@@ -728,10 +735,10 @@ def test_tasks(t,test_sets,qW,qB,num_heads,x_ph,ac_fn,batch_size,sess,conv_h=Non
     if num_heads > 1:  
         my = []
         for k in range(t+1):
-            my.append(forward_mean_nets(qW[k],qB[k],in_x,ac_fn,sess)[-1])
+            my.append(forward_fc(qW[k],qB[k],in_x,ac_fn=ac_fn,sess=sess,bayes_output=bayes_output)[-1])
     else:
-        my = forward_mean_nets(qW,qB,in_x,ac_fn,sess)[-1]
-        
+        my = forward_fc(qW,qB,in_x,ac_fn=ac_fn,sess=sess,bayes_output=bayes_output)[-1]
+
     for k,ts in enumerate(test_sets):   
         if num_heads > 1:
             acc, y_probs = predict(ts[0],ts[1],x_ph,my[k],batch_size,sess)  
