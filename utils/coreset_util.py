@@ -109,9 +109,9 @@ def gen_stein_coreset(init,core_y_data,qW,qB,n_samples,ac_fn,conv_W=None,LR=Fals
     elif conv_W is not None:
         ## to do: change to general function ##
         h = forward_cifar_model(stein_core_x,conv_W)
-        stein_core_y = forward_nets(qW,qB,h,ac_fn=ac_fn,bayes=True,num_samples=n_samples)
+        stein_core_y = forward_nets(qW,qB,h,ac_fn=ac_fn,bayes=False,num_samples=n_samples)[-1]
     else:
-        stein_core_y = forward_nets(qW,qB,stein_core_x,ac_fn=ac_fn,bayes=True,num_samples=n_samples)
+        stein_core_y = forward_nets(qW,qB,stein_core_x,ac_fn=ac_fn,bayes=False,num_samples=n_samples)[-1]
     lnp = tf.reduce_mean(stein_core_y.log_prob(core_y_data),axis=0)
     dlnp = tf.gradients(lnp,stein_core_x)
     svgd = SVGD()
@@ -127,6 +127,7 @@ def aggregate_coreset(core_sets,core_y,coreset_type,num_heads,t,n_samples,sess):
         else:
             x_core_sets = np.concatenate(core_sets[0],axis=0)
         y_core_sets = np.concatenate(core_sets[1],axis=0)
+        x_core_sets,y_core_sets = shuffle_data(x_core_sets,y_core_sets)
         core_y_data = expand_nsamples(y_core_sets,n_samples)
         return x_core_sets,y_core_sets, {core_y:core_y_data}
         #inference.reinitialize(task_id=t+1,coresets={'task':{core_y:core_y_data}})
@@ -136,6 +137,7 @@ def aggregate_coreset(core_sets,core_y,coreset_type,num_heads,t,n_samples,sess):
         else:
             x_core_sets = core_sets[0]
         y_core_sets = core_sets[1]
+        x_core_sets,y_core_sets = shuffle_data(x_core_sets,y_core_sets)
         c_task = {}
         core_y_data = [None]*(t+1)
         for k in range(t+1):

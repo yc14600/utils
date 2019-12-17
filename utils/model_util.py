@@ -119,7 +119,7 @@ def define_dense_layer(l,d1,d2,initialization=None,reg=None):
         regularizer = None
 
     if initialization is None:
-        w = tf.get_variable(name=w_name,initializer=tf.random_normal([d1,d2],stddev=1./np.sqrt(d1)),regularizer=regularizer)
+        w = tf.get_variable(name=w_name,initializer=tf.random_normal([d1,d2],stddev=np.sqrt(3.)*np.sqrt(2./(d1+d2))),regularizer=regularizer)
         b = tf.get_variable(name=b_name,initializer=tf.zeros([d2]),regularizer=regularizer)
     else:
         W0 = initialization['w']
@@ -149,7 +149,7 @@ def linear(x,w,b):
 
 
 def build_dense_layer(x,l,d1,d2,initialization=None,ac_fn=tf.nn.relu,batch_norm=False,training=None,scope=None,reg=None,bayes=False,num_samples=1):
-    print('dense layer',l,'batch norm',batch_norm,'activation',ac_fn,'regularizer',reg)
+    #print('dense layer',l,'batch norm',batch_norm,'activation',ac_fn,'regularizer',reg)
     if bayes:
         w,b,ts,parm_var = define_gaussian_dense_layer(l,'logvar',d1,d2,initialization)
         ew = w.sample(num_samples)
@@ -636,15 +636,17 @@ def fit_model(num_iter, x_train, y_train,x_ph,y_ph,batch_size,train_step,loss,se
             if _% print_iter==0:
                 print('loss',l)
 
-def predict(x_test,y_test,x_ph,y,batch_size,sess,regression=False):
+def predict(x_test,y_test,x_ph,y,batch_size,sess,regression=False,confusion=False,feed_dict={}):
         n = int(np.ceil(x_test.shape[0]/batch_size))
         r = x_test.shape[0]%batch_size
         correct = 0.
         ii = 0
         result = []
+        
+        cfmtx = np.zeros([y_test.shape[1],y_test.shape[1]])
         for i in range(n):
             x_batch,y_batch,ii = get_next_batch(x_test,batch_size,ii,labels=y_test,repeat=True)
-            feed_dict = {x_ph:x_batch}
+            feed_dict.update({x_ph:x_batch})
             y_pred_prob = sess.run(y,feed_dict=feed_dict)
             if i == n-1 and r>0:
                 y_pred_prob = y_pred_prob[-r:]
@@ -659,15 +661,26 @@ def predict(x_test,y_test,x_ph,y,batch_size,sess,regression=False):
             if not regression:
                 y_pred = np.argmax(y_pred_prob,axis=1)
                 correct += np.sum(np.argmax(y_batch,axis=1)==y_pred)
-          
+                if confusion: 
+                    for j in range(y_test.shape[1]):
+                        tot = y_batch[:,j].sum()
+                        if tot > 0:
+                            tmp = np.zeros_like(y_pred_prob)
+                            tmp[np.arange(len(tmp)),y_pred] = 1
+                            #print('tmp',tmp)
+                            #print('y_pred',y_pred)
+                            #print('sum check',tmp[y_batch[:,j]==1].sum(axis=0))
+                            cfmtx[:,j] += tmp[y_batch[:,j]==1].sum(axis=0)
+                            #assert(tot==cfmtx[:,j].sum())
         #if regression:
         result = np.vstack(result)  
         #print('y prob',result[:3])
         #print('y pred',y_pred[:3])
         #print('y test',y_test[:3])
-        if not regression:      
+        if not regression:     
             acc = correct/y_test.shape[0]
-            return acc, result
+            return acc,result,cfmtx
+
         else:
             return result
 
@@ -724,7 +737,7 @@ def compute_diag_fisher(ll,parm_var):
     return fisher
 
 
-def test_tasks(t,test_sets,qW,qB,num_heads,x_ph,ac_fn,batch_size,sess,conv_h=None,bayes=True,bayes_output=True):
+def test_tasks(t,test_sets,qW,qB,num_heads,x_ph,ac_fn,batch_size,sess,conv_h=None,bayes=True,bayes_output=True,confusion=False,*args,**kargs):
     acc_record, pred_probs = [], []
     forward_fc = forward_mean_nets if bayes else forward_nets
     if conv_h is not None:
@@ -739,16 +752,20 @@ def test_tasks(t,test_sets,qW,qB,num_heads,x_ph,ac_fn,batch_size,sess,conv_h=Non
     else:
         my = forward_fc(qW,qB,in_x,ac_fn=ac_fn,sess=sess,bayes_output=bayes_output)[-1]
 
+    
+    dim = test_sets[0][1].shape[1]
+    cfmtx = np.zeros([dim,dim])
     for k,ts in enumerate(test_sets):   
         if num_heads > 1:
-            acc, y_probs = predict(ts[0],ts[1],x_ph,my[k],batch_size,sess)  
+            acc, y_probs,cf = predict(ts[0],ts[1],x_ph,my[k],batch_size,sess,confusion,*args,**kargs)  
         else: 
-            acc, y_probs = predict(ts[0],ts[1],x_ph,my,batch_size,sess)
+            acc, y_probs,cf = predict(ts[0],ts[1],x_ph,my,batch_size,sess,confusion,*args,**kargs)
         print('accuracy',acc)
         acc_record.append(acc)
-        pred_probs.append(y_probs)
+        pred_probs.append(y_probs)        
+        cfmtx += cf
     print('avg accuracy',np.mean(acc_record))
-    return acc_record,pred_probs
+    return acc_record,pred_probs,cfmtx
 
 def gen_trans_parms(q_list,name,transition_parm={},transition_parm_ng={},task_var_cfg={},trans_var_cfg={}):
     for i,qw in enumerate(q_list):
@@ -906,17 +923,39 @@ def mean_list(X):
     m = [mi/len(X) for mi in m]
     return m
 
-def calc_similarity(vec_a, vec_b, sim_type='cos',sess=None):
-    if sim_type == 'cos':
-        norm_a = tf.sqrt(square_sum_list(vec_a))
-        norm_b = tf.sqrt(square_sum_list(vec_b))
+def calc_similarity(vec_a, vec_b=None, sim_type='cos',sess=None):
+    if isinstance(vec_a,list):
+        if sim_type == 'cos':
+            norm_a = tf.sqrt(square_sum_list(vec_a))
+            norm_b = tf.sqrt(square_sum_list(vec_b))
 
-        sim = dot_prod_list(vec_a,vec_b)/(norm_a*norm_b)
-    elif sim_type == 'euc':
-        sum = 0
-        for fa,fb in zip(vec_a,vec_b):
-            sum += tf.reduce_sum(tf.square(fa-fb))
-        sim = tf.sqrt(sum)
+            sim = dot_prod_list(vec_a,vec_b)/(norm_a*norm_b)
+        elif sim_type == 'euc':
+            sum = 0
+            for fa,fb in zip(vec_a,vec_b):
+                sum += tf.reduce_sum(tf.square(fa-fb))
+            sim = tf.sqrt(sum)
+    else:
+        if sim_type == 'cos':
+            if vec_b is not None:
+                
+                norm_a = tf.sqrt(tf.reduce_sum(tf.square(vec_a),axis=-1))
+                norm_b = tf.sqrt(tf.reduce_sum(tf.square(vec_b),axis=-1))
+                if vec_a.shape[0]!=vec_b.shape[0]:
+                    sim = tf.einsum('ij,jkn->ikn',vec_a/tf.reshape(norm_a,[-1,1]),tf.transpose(tf.expand_dims(vec_b/tf.reshape(norm_b,[-1,1]),axis=1)))
+                else:
+                    sim = tf.matmul(vec_a/tf.reshape(norm_a,[-1,1]),tf.transpose(vec_b/tf.reshape(norm_b,[-1,1])))
+            else:
+                x_norm = tf.sqrt(tf.reduce_sum(tf.square(vec_a),axis=1))
+                vec_a /= tf.reshape(x_norm,[-1,1])
+                sim = tf.matmul(vec_a,tf.transpose(vec_a))
+        elif sim_type == 'euc':
+            if vec_b is not None:
+                sim = tf.sqrt(tf.reduce_sum(tf.square(vec_a-vec_b)))
+            else:
+                k1 = tf.reshape(tf.reduce_sum(tf.square(vec_a),axis=1),[-1,1])
+                k2 = tf.tile(tf.reshape(tf.reduce_sum(tf.square(vec_a),axis=1),[1,-1]),[vec_a.shape[0],1])
+                sim = tf.sqrt(k1+k2-2*tf.matmul(vec_a,tf.transpose(vec_a)))
 
     if sess:
         sim = sess.run(sim) 

@@ -313,13 +313,18 @@ def config_optimizer(starter_learning_rate,step_name,grad_type='adam',decay=None
                                                 decay[0], decay[1], staircase=True)
         else:
             learning_rate = starter_learning_rate
-
+        
+        
         if 'adam' in grad_type:                                       
             optimizer = (tf.train.AdamOptimizer(learning_rate,beta1=beta1),step)
         elif 'sgd' in grad_type:
             optimizer = (tf.train.GradientDescentOptimizer(learning_rate),step)
         elif 'ada_delta' in grad_type:
             optimizer = (tf.train.AdadeltaOptimizer(learning_rate),step)
+        elif 'ada' in grad_type:                                       
+            optimizer = (tf.train.AdagradOptimizer(learning_rate),step)
+        elif 'rms' in grad_type:
+            optimizer = (tf.train.RMSPropOptimizer(learning_rate),step)
     
     return optimizer
 
@@ -338,7 +343,8 @@ def gen_class_select_data(x_train,y_train,x_test,y_test,cl,one_hot_code=None):
     return x_train[train_ids],y_train_cl,x_test[test_ids],y_test_cl
     
 
-def gen_next_task_data(task_name,X_TRAIN,Y_TRAIN,X_TEST,Y_TEST,sd=0,cl_n=2,out_dim=2,num_heads=1,cl_cmb=None,cl_k=0):
+def gen_next_task_data(task_name,X_TRAIN,Y_TRAIN,X_TEST,Y_TEST,sd=0,cl_n=2,out_dim=2,num_heads=1,cl_cmb=None,cl_k=0,\
+                        train_size=None,test_size=None,*args,**kargs):
 
     if 'permuted' in task_name:
         x_train_task,x_test_task = gen_permuted_data(sd,X_TRAIN,X_TEST)
@@ -380,6 +386,12 @@ def gen_next_task_data(task_name,X_TRAIN,Y_TRAIN,X_TEST,Y_TEST,sd=0,cl_n=2,out_d
         
         cl_k+=cl_n
 
+    if train_size>0:
+        x_train_task = x_train_task[:train_size]
+        y_train_task = y_train_task[:train_size]
+    if test_size>0:
+        x_test_task = x_test_task[:test_size]
+        y_test_task = y_test_task[:test_size]
 
     return x_train_task,y_train_task,x_test_task,y_test_task,cl_k,clss
 
