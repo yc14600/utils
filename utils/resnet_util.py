@@ -151,22 +151,22 @@ def resnet18_conv_feedforward(h, kernels, filters, strides,out_dim,train_phase,i
         H.append(h)
         # Conv2_x
         h = _residual_block(h, trainable_vars, train_phase, scope='conv2_1')
-        #H.append(h)
+        H.append(h)
         h = _residual_block(h, trainable_vars, train_phase, scope='conv2_2')
         H.append(h)
         # Conv3_x
         h = _residual_block_first(h, filters[2], strides[2], trainable_vars, train_phase, scope='conv3_1', is_ATT_DATASET=is_ATT_DATASET)
-        #H.append(h)
+        H.append(h)
         h = _residual_block(h, trainable_vars, train_phase, scope='conv3_2')
         H.append(h)
         # Conv4_x
         h = _residual_block_first(h, filters[3], strides[3], trainable_vars, train_phase, scope='conv4_1', is_ATT_DATASET=is_ATT_DATASET)
-        #H.append(h)
+        H.append(h)
         h = _residual_block(h, trainable_vars, train_phase, scope='conv4_2')
         H.append(h)
         # Conv5_x
         h = _residual_block_first(h, filters[4], strides[4], trainable_vars, train_phase, scope='conv5_1', is_ATT_DATASET=is_ATT_DATASET)
-        #H.append(h)
+        H.append(h)
         h = _residual_block(h, trainable_vars, train_phase, scope='conv5_2')
 
         # Apply average pooling
