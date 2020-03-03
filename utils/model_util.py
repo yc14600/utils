@@ -4,19 +4,17 @@ from __future__ import print_function
 
 import tensorflow as tf
 import edward as ed
-#import matplotlib.pyplot as plt
-#import seaborn as sb
+from abc import ABC, abstractmethod
 import numpy as np
 import scipy as sp
 import collections
 import six
 import os
-path = os.getcwd()
 import sys
-sys.path.append(path+'/../')
+
 
 from tensorflow.keras.initializers import Initializer
-from utils.train_util import get_next_batch
+from utils.train_util import get_next_batch,config_train,config_optimizer
 from edward.models import Normal,OneHotCategorical,MultivariateNormalTriL
 from hsvi.methods.svgd import SVGD
 
@@ -685,45 +683,113 @@ def predict(x_test,y_test,x_ph,y,batch_size,sess,regression=False,confusion=Fals
             return result
 
 
-def LinearRegression(x_ph,in_dim,out_dim,Bayes=True,initialization=None,num_samples=1,logistic=True,noise_std=0.1):
-    N = in_dim
-    C = out_dim
-    if Bayes:
-        if initialization is None:
-            w_loc_var = tf.Variable(tf.random_normal([N,C],stddev=.1),name='weights_mean')
-            b_loc_var = tf.Variable(tf.random_normal([C],stddev=.1),name='bias_mean')
-            w_s_var = tf.Variable(tf.ones([N,C])*-3.,name='weights_std')
-            b_s_var = tf.Variable(tf.ones([C])*-3.,name='bias_std')
-            
-        else:
-            W0 = initialization['w']
-            B0 = initialization['b']
-            w_loc_var = tf.Variable(W0,name='weights_mean')
-            b_loc_var = tf.Variable(B0,name='bias_mean')
-            w_s_var = tf.Variable(tf.ones([N,C])*-3.,name='weights_std')
-            b_s_var = tf.Variable(tf.ones([C])*-3.,name='bias_std')
+class Model(ABC):
+    def __init__(self,x_ph,y_ph,in_dim,out_dim,scope,*args,**kargs):
+        self.x_ph = x_ph
+        self.y_ph = y_ph
+        self.in_dim = in_dim
+        self.out_dim = out_dim
+        self.scope = scope
+        self.define_model(*args,**kargs)
 
-        W = Normal(loc=w_loc_var,scale=tf.exp(w_s_var))
-        B = Normal(loc=b_loc_var,scale=tf.exp(b_s_var))
-        #eW = tf.reduce_mean(W.sample(num_samples),axis=0)
-        if logistic:
-            y = OneHotCategorical(logits=tf.matmul(x_ph,W)+B)
-        else:
-            y = Normal(loc=tf.matmul(x_ph,W)+B,scale=noise_std)
-        return W,B,y,{W:[w_loc_var,w_s_var],B:[b_loc_var,b_s_var]}
-    else:
-        if initialization is None:
-            W = tf.Variable(tf.random_normal([N,C],stddev=.1),name='weights')
-            B = tf.Variable(tf.random_normal([C],stddev=.1),name='bias')
-        else:
-            W = tf.Variable(initialization['w'],name='weights')
-            B = tf.Variable(initialization['b'],name='bias')
-        #eW = tf.reduce_mean(W.sample(num_samples),axis=0)
-        if logistic:
-            y = tf.nn.softmax(tf.matmul(x_ph,W)+B)
-        else:
-            y = tf.matmul(x_ph,W)+B
-        return W,B,y
+
+    @abstractmethod
+    def define_model(self,*args,**kargs):
+        pass
+
+
+    def config_train_opt(self,learning_rate,op_type='adam',decay=None):
+
+        self.train, self.var_list, self.opt = config_train(self.loss,self.scope,learning_rate=learning_rate,op_type=op_type,decay=decay)
+
+
+    def fit(self,num_iter,x_train,y_train,batch_size,sess):
+
+        return fit_model(num_iter,x_train,y_train,self.x_ph,self.y_ph,batch_size,self.train,self.loss,sess)
+
+
+class LinearRegression(Model):
+
+    def __init__(self,x_ph,y_ph,in_dim,out_dim,scope='LR',Bayes=True,initialization=None,num_samples=1,logistic=True,noise_std=0.1,w_ph=1.,*args,**kargs):
+        
+        self.w_ph = w_ph # for importance sampling
+        super(LinearRegression,self).__init__(x_ph,y_ph,in_dim,out_dim,scope=scope,Bayes=Bayes,initialization=initialization,\
+                                        num_samples=num_samples,logistic=logistic,noise_std=noise_std,w_ph=w_ph)
+        
+
+    def define_model(self,Bayes=True,initialization=None,num_samples=1,logistic=True,noise_std=0.1,w_ph=1.):   
+        N = self.in_dim
+        C = self.out_dim
+        with tf.variable_scope(self.scope):
+            if Bayes:
+                if initialization is None:
+                    w_loc_var = tf.Variable(tf.random_normal([N,C],stddev=.1),name='weights_mean')
+                    b_loc_var = tf.Variable(tf.random_normal([C],stddev=.1),name='bias_mean')
+                    w_s_var = tf.Variable(tf.ones([N,C])*-3.,name='weights_std')
+                    b_s_var = tf.Variable(tf.ones([C])*-3.,name='bias_std')
+                    
+                else:
+                    W0 = initialization['w']
+                    B0 = initialization['b']
+                    w_loc_var = tf.Variable(W0,name='weights_mean')
+                    b_loc_var = tf.Variable(B0,name='bias_mean')
+                    w_s_var = tf.Variable(tf.ones([N,C])*-3.,name='weights_std')
+                    b_s_var = tf.Variable(tf.ones([C])*-3.,name='bias_std')
+
+                W = Normal(loc=w_loc_var,scale=tf.exp(w_s_var))
+                B = Normal(loc=b_loc_var,scale=tf.exp(b_s_var))
+                #eW = tf.reduce_mean(W.sample(num_samples),axis=0)
+                if logistic:
+                    y = OneHotCategorical(logits=tf.matmul(self.x_ph,W)+B)
+                else:
+                    y = Normal(loc=tf.matmul(self.x_ph,W)+B,scale=noise_std)
+
+                self.parm_var = {W:[w_loc_var,w_s_var],B:[b_loc_var,b_s_var]}
+                
+                self.loss = -tf.reduce_mean(tf.reduce_sum(y.log_prob(self.y_ph),axis=1)*w_ph)
+
+            else:
+                if initialization is None:
+                    W = tf.Variable(tf.random_normal([N,C],stddev=.1),name='weights')
+                    B = tf.Variable(tf.random_normal([C],stddev=.1),name='bias')
+                else:
+                    W = tf.Variable(initialization['w'],name='weights')
+                    B = tf.Variable(initialization['b'],name='bias')
+                
+                y = tf.matmul(self.x_ph,W)+B
+                if logistic:
+                    self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=self.y_ph,logits=y)*w_ph)
+                else:
+                    print('check w_ph',w_ph)
+                    self.loss = tf.reduce_mean(tf.square(self.y_ph-y)*w_ph) #tf.losses.mean_squared_error(labels=self.y_ph,predictions=y,weights=w_ph)
+            
+        self.W, self.B, self.y = W, B, y
+        #print('check loss',self.loss,y)
+    
+
+    def fit(self,num_iter,x_train,y_train,batch_size,sess,weights=None,print_iter=100):
+        ii = 0
+        for it in range(num_iter):
+            start = ii
+            x_batch,y_batch,ii = get_next_batch(x_train,batch_size,ii,labels=y_train)
+
+            feed_dict = {self.x_ph:x_batch,self.y_ph:y_batch}
+
+            if weights is not None:
+                w_batch,_,__ = get_next_batch(weights,batch_size,start)
+                #print('check w batch',it,w_batch[:3])
+                feed_dict.update({self.w_ph:w_batch})
+
+            l,__ = sess.run([self.loss,self.train], feed_dict=feed_dict)
+            if it% print_iter==0:
+                print('loss',l)
+        
+class SineLinearRegression(LinearRegression):
+    def define_model(self,Bayes=False,initialization=None,num_samples=1,logistic=False,noise_std=0.1,w_ph=1.):
+        super(SineLinearRegression,self).define_model(Bayes=False,initialization=initialization,num_samples=num_samples,logistic=False,noise_std=noise_std,w_ph=w_ph)
+        self.y = tf.sin(self.y)
+        self.loss = tf.reduce_mean(tf.square(self.y_ph-self.y)*w_ph)
+
 
 def compute_diag_fisher(ll,parm_var):
     fisher = {}

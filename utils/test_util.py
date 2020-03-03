@@ -5,7 +5,7 @@ import pandas as pd
 import argparse
 import os
 
-from scipy.stats import multivariate_normal, norm
+from scipy.stats import multivariate_normal, norm, uniform
 from utils.train_util import gen_class_split_data,one_hot_encoder,shuffle_data
 from utils.data_util import *
 from base_models.gans import fGAN
@@ -36,30 +36,34 @@ def normalize(x):
     return y
 
 
-def get_dists(d_dim,nu_mean,nu_std,de_mean,de_std,nu_pi=[],de_pi=[]):
+def get_dists(d_dim,nu_mean,nu_std,de_mean,de_std,nu_pi=[],de_pi=[],dist_type='Normal'):
     
-    nu_dist = gen_dist(d_dim,nu_mean,nu_std,nu_pi)
-    de_dist = gen_dist(d_dim,de_mean,de_std,de_pi)
+    nu_dist = gen_dist(d_dim,nu_mean,nu_std,nu_pi,dist_type)
+    de_dist = gen_dist(d_dim,de_mean,de_std,de_pi,dist_type)
   
     return nu_dist, de_dist
 
 
-def gen_dist(d_dim,mean,std,pi=[]):
-    if len(pi) == 0:
-        dist = DiagGaussian(mean,std,d_dim)
-    else:
-        dist = MixDiagGaussian(mean,std,pi,d_dim)
+def gen_dist(d_dim,par1,par2,pi=[],dist_type='Normal'):
+    if dist_type == 'Normal':
+        if len(pi) == 0:
+            dist = DiagGaussian(par1,par2,d_dim)
+        else:
+            dist = MixDiagGaussian(par1,par2,pi,d_dim)
+
+    elif dist_type == 'Uniform':
+        dist = Uniform(par1,par2,d_dim)
     
     return dist
 
 
-def get_dist_list(d_dim,means,stds,pi=[]):
+def get_dist_list(d_dim,locs,scales,pi=[]):
     dl = []
     if len(pi) == 0:
-        for m,s in zip(means,stds):
+        for m,s in zip(locs,scales):
             dl.append(gen_dist(d_dim,m,s))
     else:
-        for m,s,p in zip(means,stds,pi):
+        for m,s,p in zip(locs,scales,pi):
             dl.append(gen_dist(d_dim,m,s,p))
 
     return dl
@@ -77,22 +81,24 @@ def get_samples(sample_size,nu_dist,de_dist,de_sample_size=None):
 # In[12]:
 
 
-def gen_samples(sample_size,d_dim,mean,std):
-    samples = np.random.normal(loc=mean,scale=std,size=(sample_size,d_dim)).astype(np.float32)
+def gen_samples(sample_size,d_dim,loc,scale,dist_type='Normal'):
+    if dist_type == 'Normal':
+        samples = np.random.normal(loc=loc,scale=scale,size=(sample_size,d_dim)).astype(np.float32)
+    elif dist_type == 'Uniform':
+        samples = np.random.uniform(low=loc,high=scale,size=(sample_size,d_dim)).astype(np.float32)
     return samples
 
 
 
 class DiagGaussian(object):
     def __init__(self,mean,std,dim):
-        self.mean = mean
-        self.std = std
+        self.loc = mean
+        self.scale = std
         self.dim = dim
         if dim > 1:
             self.dist = multivariate_normal(mean=np.ones(dim)*mean,cov=np.ones(dim)*std)
         else:
             self.dist = norm(loc=mean,scale=std)
-
 
     def log_prob(self,x):
         return self.dist.logpdf(x)
@@ -101,17 +107,35 @@ class DiagGaussian(object):
         return self.dist.pdf(x)
 
     def sample(self,size=1):
-        return gen_samples(size,self.dim,self.mean,self.std)
+        return gen_samples(size,self.dim,self.loc,self.scale,dist_type='Normal')
+
+
+class Uniform(DiagGaussian):
+    def __init__(self,lo,ho,dim):
+        self.lo = lo
+        self.ho = ho
+        self.dim = dim
+        self.dist = uniform(loc=lo,scale=ho-lo)
+    
+    def sample(self,size=1):
+        return gen_samples(size,self.dim,self.lo,self.ho,dist_type='Uniform')
+
+    def log_prob(self,x):
+        return np.sum(self.dist.logpdf(x),axis=1)
+
+    def prob(self,x):
+        return np.prod(self.dist.pdf(x),axis=1)
+
+
 
 def config_result_path(rpath):
     if rpath[-1] != '/':
         rpath = rpath+'/'
 
-    if not os.path.exists(rpath):
-        try:
-            os.makedirs(rpath)
-        except FileExistsError: #for parallel testing
-            return rpath
+    try:
+        os.makedirs(rpath)
+    except FileExistsError: #for parallel testing
+        return rpath
     
     return rpath
 

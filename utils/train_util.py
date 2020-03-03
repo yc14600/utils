@@ -296,6 +296,21 @@ def build_toy_dataset(mtype,N,M,K,s_std=1,s_mean=0,d_std=1,d_mean=0,noise_std=0.
         return (y,x)
 
 
+def config_train(loss,scope,learning_rate=0.0002,op_type='adam',beta1=0.9,decay=None,clip=None,*args,**kargs):
+    
+    var_list = get_vars_by_scope(scope)
+    grads = tf.gradients(loss, var_list)
+    if clip is not None:
+        grads = [tf.clip_by_value(g, clip[0],clip[1]) for g in grads]
+    grads_and_vars = list(zip(grads, var_list))
+    print(scope,'learning rate',learning_rate)
+    #print('var list',var_list)
+    opt = config_optimizer(learning_rate,scope+'_step',grad_type=op_type,decay=decay,beta1=beta1)   
+
+    train = opt[0].apply_gradients(grads_and_vars, global_step=opt[1])
+
+    return train,var_list,opt
+
     
 def config_optimizer(starter_learning_rate,step_name,grad_type='adam',decay=None,beta1=0.9,scope=None):
 
@@ -327,6 +342,8 @@ def config_optimizer(starter_learning_rate,step_name,grad_type='adam',decay=None
             optimizer = (tf.train.RMSPropOptimizer(learning_rate),step)
     
     return optimizer
+
+
 
 def gen_class_select_data(x_train,y_train,x_test,y_test,cl,one_hot_code=None):
     train_ids = (y_train==cl).reshape(-1)
