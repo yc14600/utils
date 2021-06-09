@@ -1,6 +1,5 @@
 import numpy as np
 import tensorflow as tf
-import edward as ed
 import pandas as pd
 import argparse
 import os

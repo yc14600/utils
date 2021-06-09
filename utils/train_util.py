@@ -4,16 +4,13 @@ from __future__ import division
 from __future__ import print_function
 
 import tensorflow as tf
-#import edward as ed
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-#import seaborn as sb
 import numpy as np
 import scipy as sp
 import os
-path = os.getcwd()
 import sys
-sys.path.append(path+'/../')
+
 
 from tensorflow.examples.tutorials.mnist import input_data
 from tensorflow.python.keras.datasets import cifar10,cifar100

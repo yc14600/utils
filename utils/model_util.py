@@ -3,7 +3,6 @@ from __future__ import division
 from __future__ import print_function
 
 import tensorflow as tf
-import edward as ed
 from abc import ABC, abstractmethod
 import numpy as np
 import scipy as sp
@@ -15,7 +14,7 @@ import sys
 
 from tensorflow.keras.initializers import Initializer
 from utils.train_util import get_next_batch,config_train,config_optimizer
-from edward.models import Normal,OneHotCategorical,MultivariateNormalTriL
+from utils.distributions import Normal,OneHotCategorical,MultivariateNormalTriL
 
 
 class ReprmNormal:
