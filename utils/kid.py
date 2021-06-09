@@ -12,7 +12,7 @@ from tqdm import tqdm
 from sklearn.metrics.pairwise import polynomial_kernel
 
 
-from utils.train_util import config_optimizer, get_next_batch, get_var_list
+from utils.train_util import config_optimizer, get_next_batch
 from base_models.gans import GAN
 from utils.fid import FID_Evaluator
 

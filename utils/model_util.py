@@ -16,7 +16,7 @@ import sys
 from tensorflow.keras.initializers import Initializer
 from utils.train_util import get_next_batch,config_train,config_optimizer
 from edward.models import Normal,OneHotCategorical,MultivariateNormalTriL
-from hsvi.methods.svgd import SVGD
+
 
 class ReprmNormal:
     def __init__(self,loc,logvar):
@@ -579,6 +579,7 @@ def forward_nets(W,B,input,ac_fn=tf.nn.relu,bayes=False,num_samples=1,local_rpm=
             
             z = local_reparam(h,W[l],parm_var)+B[l]          
         else:
+            print('forward nets nsamples',num_samples)
             for l in range(len(B)-1):
                 ew = W[l].sample(num_samples)
                 eb = B[l].sample(num_samples)
@@ -823,9 +824,9 @@ def test_tasks(t,test_sets,qW,qB,num_heads,x_ph,ac_fn,batch_size,sess,conv_h=Non
     cfmtx = np.zeros([dim,dim])
     for k,ts in enumerate(test_sets):   
         if num_heads > 1:
-            acc, y_probs,cf = predict(ts[0],ts[1],x_ph,my[k],batch_size,sess,confusion,*args,**kargs)  
+            acc, y_probs,cf = predict(ts[0],ts[1],x_ph,my[k],batch_size,sess,confusion=confusion,*args,**kargs)  
         else: 
-            acc, y_probs,cf = predict(ts[0],ts[1],x_ph,my,batch_size,sess,confusion,*args,**kargs)
+            acc, y_probs,cf = predict(ts[0],ts[1],x_ph,my,batch_size,sess,confusion=confusion,*args,**kargs)
         print('accuracy',acc)
         acc_record.append(acc)
         pred_probs.append(y_probs)        

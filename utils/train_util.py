@@ -394,6 +394,7 @@ def gen_next_task_data(task_name,X_TRAIN,Y_TRAIN,X_TEST,Y_TEST,sd=0,cl_n=2,out_d
 
     elif 'split' in task_name:
         clss = cl_cmb[cl_k:cl_k+cl_n]
+        print('num heads',num_heads)
         if num_heads > 1:
             x_train_task,y_train_task,x_test_task,y_test_task = gen_class_split_data(sd,None,None,X_TRAIN,Y_TRAIN,X_TEST,Y_TEST,clss,C=cl_n)
         else:   

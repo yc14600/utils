@@ -36,7 +36,7 @@ def gen_random_coreset(x_train,y_train,coreset_size,clss=None):
         cln = len(clss)
     n_c = int(coreset_size/cln)
     r_c = coreset_size - n_c*cln 
-    print('cln',cln)
+    print('cln',cln, 'clss',clss)
         
     core_y, core_x = [],[]
     for c in clss:
@@ -102,20 +102,21 @@ def gen_rdproj_coreset(x_train, y_train, coreset_size,num_class,cls=None):
     return core_x,core_y
 
 
-def gen_stein_coreset(init,core_y_data,qW,qB,n_samples,ac_fn,conv_W=None,LR=False,noise_std=0.001):
+def gen_stein_coreset(init,core_y_data,qW,qB,n_samples,ac_fn,conv_W=None,LR=False,noise_std=0.001,sess=None):
     stein_core_x = tf.get_variable('stein_cx',initializer=init.astype(np.float32),dtype=tf.float32)
+    print('gen stein coreset')
     if LR:
         stein_core_y = Normal(loc=tf.matmul(stein_core_x,qW)+qB,scale=noise_std)
     elif conv_W is not None:
         ## to do: change to general function ##
         h = forward_cifar_model(stein_core_x,conv_W)
-        stein_core_y = forward_nets(qW,qB,h,ac_fn=ac_fn,bayes=False,num_samples=n_samples)[-1]
+        stein_core_y = forward_nets(qW,qB,h,ac_fn=ac_fn,bayes=True,num_samples=10)[-1]
     else:
-        stein_core_y = forward_nets(qW,qB,stein_core_x,ac_fn=ac_fn,bayes=False,num_samples=n_samples)[-1]
+        stein_core_y = forward_nets(qW,qB,stein_core_x,ac_fn=ac_fn,bayes=True,num_samples=10)[-1]
     lnp = tf.reduce_mean(stein_core_y.log_prob(core_y_data),axis=0)
     dlnp = tf.gradients(lnp,stein_core_x)
     svgd = SVGD()
-    print('shape check',stein_core_x.shape)
+    #print('shape check',stein_core_x.shape)
     core_sgrad = svgd.gradients(stein_core_x,dlnp[0])
 
     return stein_core_x,stein_core_y,core_sgrad
@@ -137,7 +138,7 @@ def aggregate_coreset(core_sets,core_y,coreset_type,num_heads,t,n_samples,sess):
         else:
             x_core_sets = core_sets[0]
         y_core_sets = core_sets[1]
-        x_core_sets,y_core_sets = shuffle_data(x_core_sets,y_core_sets)
+        #x_core_sets,y_core_sets = shuffle_data(x_core_sets,y_core_sets)
         c_task = {}
         core_y_data = [None]*(t+1)
         for k in range(t+1):

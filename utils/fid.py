@@ -9,7 +9,7 @@ import six
 import tensorflow as tf
 from scipy import linalg
 
-from .train_util import config_optimizer, get_next_batch, get_var_list
+from .train_util import config_optimizer, get_next_batch
 from .data_util import extract_inception_feature,load_inception_net
 from base_models.gans import GAN
 from base_models.classifier import Classifier

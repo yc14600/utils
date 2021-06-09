@@ -89,6 +89,9 @@ def gen_samples(sample_size,d_dim,loc,scale,dist_type='Normal'):
     return samples
 
 
+def Gaussian_KL(dist_a, dist_b,dim):
+    return dim * (np.log(dist_b.scale/dist_a.scale)+(np.square(dist_a.scale)+np.square(dist_a.loc-dist_b.loc))/(2*np.square(dist_b.scale))-0.5)
+
 
 class DiagGaussian(object):
     def __init__(self,mean,std,dim):
