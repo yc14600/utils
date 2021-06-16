@@ -12,9 +12,9 @@ from tqdm import tqdm
 from sklearn.metrics.pairwise import polynomial_kernel
 
 
-from utils.train_util import config_optimizer, get_next_batch
+from .train_util import config_optimizer, get_next_batch
 from base_models.gans import GAN
-from utils.fid import FID_Evaluator
+from .fid import FID_Evaluator
 
 
 # borrowed from https://github.com/mbinkowski/MMD-GAN/blob/master/gan/compute_scores.py

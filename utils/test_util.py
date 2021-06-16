@@ -5,8 +5,8 @@ import argparse
 import os
 
 from scipy.stats import multivariate_normal, norm, uniform
-from utils.train_util import gen_class_split_data,one_hot_encoder,shuffle_data
-from utils.data_util import *
+from .train_util import gen_class_split_data,one_hot_encoder,shuffle_data
+from .data_util import *
 from base_models.gans import fGAN
 
 

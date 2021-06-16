@@ -13,8 +13,8 @@ import sys
 
 
 from tensorflow.keras.initializers import Initializer
-from utils.train_util import get_next_batch,config_train,config_optimizer
-from utils.distributions import Normal,OneHotCategorical,MultivariateNormalTriL
+from .train_util import get_next_batch,config_train,config_optimizer
+from .distributions import Normal,OneHotCategorical,MultivariateNormalTriL
 
 
 class ReprmNormal:
