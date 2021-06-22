@@ -1,5 +1,5 @@
- ########## Code Selected From Edward #############
- ########## https://github.com/yc14600/edward/tree/master/edward/models
+ ### Code From Edward ###
+ ### https://github.com/blei-lab/edward/blob/master/edward/models ###
 
 from __future__ import absolute_import
 from __future__ import division
