@@ -7,17 +7,14 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import numpy as np
-import scipy as sp
 import os
-import sys
 
 
 from tensorflow.examples.tutorials.mnist import input_data
 from tensorflow.python.keras.datasets import cifar10,cifar100
 from tensorflow.python.keras import backend as K
 from tensorflow.python.keras.datasets.cifar import load_batch
-from tensorflow.python.keras.utils.data_utils import get_file
-from tensorflow.python.util.tf_export import tf_export
+
 
 def concat_parms(parm_list):
     pa = tf.reshape(parm_list[0],[1,-1])

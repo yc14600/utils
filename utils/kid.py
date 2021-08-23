@@ -3,17 +3,12 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np 
-import scipy as sp
-import pandas as pd
-import six,sys
-import tensorflow as tf
-from scipy import linalg
+import sys
 from tqdm import tqdm
 from sklearn.metrics.pairwise import polynomial_kernel
 
 
-from .train_util import config_optimizer, get_next_batch
-from base_models.gans import GAN
+
 from .fid import FID_Evaluator
 
 

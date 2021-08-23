@@ -5,15 +5,12 @@ from __future__ import print_function
 import tensorflow as tf
 from abc import ABC, abstractmethod
 import numpy as np
-import scipy as sp
 import collections
 import six
-import os
-import sys
 
 
 from tensorflow.keras.initializers import Initializer
-from .train_util import get_next_batch,config_train,config_optimizer
+from .train_util import get_next_batch,config_train
 from .distributions import Normal,OneHotCategorical,MultivariateNormalTriL
 
 
@@ -649,7 +646,6 @@ def predict(x_test,y_test,x_ph,y,batch_size,sess,regression=False,confusion=Fals
             if i == n-1 and r>0:
                 y_pred_prob = y_pred_prob[-r:]
                 y_batch = y_batch[-r:]
-            #print('y pred prob',y_pred_prob.shape,y_test.shape,np.sum(y_test,axis=0))
 
             if len(y_pred_prob.shape) > 2:
                 y_pred_prob = np.mean(y_pred_prob,axis=0)
@@ -665,16 +661,10 @@ def predict(x_test,y_test,x_ph,y,batch_size,sess,regression=False,confusion=Fals
                         if tot > 0:
                             tmp = np.zeros_like(y_pred_prob)
                             tmp[np.arange(len(tmp)),y_pred] = 1
-                            #print('tmp',tmp)
-                            #print('y_pred',y_pred)
-                            #print('sum check',tmp[y_batch[:,j]==1].sum(axis=0))
                             cfmtx[:,j] += tmp[y_batch[:,j]==1].sum(axis=0)
-                            #assert(tot==cfmtx[:,j].sum())
         #if regression:
         result = np.vstack(result)  
-        #print('y prob',result[:3])
-        #print('y pred',y_pred[:3])
-        #print('y test',y_test[:3])
+
         if not regression:     
             acc = correct/y_test.shape[0]
             return acc,result,cfmtx

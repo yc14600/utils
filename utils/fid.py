@@ -3,15 +3,10 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np 
-import scipy as sp
-import pandas as pd
-import six
 import tensorflow as tf
 from scipy import linalg
 
-from .train_util import config_optimizer, get_next_batch
 from .data_util import extract_inception_feature,load_inception_net
-from base_models.gans import GAN
 from base_models.classifier import Classifier
 from base_models.vae import VAE
 

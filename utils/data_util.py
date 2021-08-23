@@ -3,15 +3,10 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np 
-import pandas as pd 
-import scipy as sp 
 import gzip
 import os
-import tensorflow as tf 
 import pickle
-import subprocess
 
-from collections.abc import Iterable
 from tensorflow.python.platform import gfile
 
 from .train_util import one_hot_encoder, get_next_batch
@@ -65,8 +60,6 @@ def save_samples(path,samples,file_name=None):
     
     if not os.path.exists(path):
         os.makedirs(path)
-    if path[-1] != '/':
-        path+='/'
 
     if file_name is None:
         file_name = ['samples','labels']
@@ -82,7 +75,7 @@ def save_samples(path,samples,file_name=None):
         if not s.flags.c_contiguous:
             print('c_contiguous',s.flags.c_contiguous)
             s = np.ascontiguousarray(s)
-        with gzip.open(path+fname+'.gz', 'wb') as f:
+        with gzip.open(os.path.join(path,fname+'.gz'), 'wb') as f:
             f.write(s)
 
     return 
