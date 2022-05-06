@@ -20,11 +20,26 @@ def str2ilist(s):
     l = [int(si) for si in s]
     return l
 
-def str2flist(s):   
-    s = s[1:-1]
-    s = s.split(',')
-    l = [float(si) for si in s]
-    return l
+def str2flist(s): 
+    s1 = s.split('[')
+    if len(s1) > 2:
+        s2 = [k.split(']') for k in s1]
+        l = []
+        for k in s2:
+            for i in k:
+                if len(i)>0:
+                    si = i.split(',')
+                    li = []
+                    for sii in si:
+                        if len(sii)>0: li.append(float(sii)) 
+                    if len(li)>0:
+                        l.append(li)
+        return l
+    else:   
+        s = s[1:-1]
+        s = s.split(',')
+        l = [float(si) for si in s]
+        return l
 
 def normalize(x):
     s = np.sum(x)
@@ -95,6 +110,11 @@ class DiagGaussian(object):
         self.scale = std
         self.dim = dim
         if dim > 1:
+            if isinstance(mean,list):
+                mean = np.array(mean)
+            if isinstance(std,list):
+                std = np.array(std)
+            #print('mean',mean)
             self.dist = multivariate_normal(mean=np.ones(dim)*mean,cov=np.ones(dim)*std)
         else:
             self.dist = norm(loc=mean,scale=std)
@@ -189,15 +209,15 @@ def update_toygaussian_dists(args,t,ori_nu_means,ori_nu_stds,ori_nu_dists,nu_mea
 
     if args.continual_ratio:
         nu_means = [mean + delta_par for mean in nu_means]
-        nu_stds = [std - delta_par for std in nu_stds] if args.scale_shrink else [std + delta_par for std in nu_stds]
-    nu_means.append(ori_nu_means[t+1])
-    nu_stds.append(ori_nu_stds[t+1])
+        nu_stds = [std - args.scale_shrink*delta_par for std in nu_stds] 
+    nu_means.append(np.array(ori_nu_means[t+1]))
+    nu_stds.append(np.array(ori_nu_stds[t+1]))
     #print('check nu parms',nu_means,nu_stds)
 
     de_means.append(nu_means[-1])
     de_stds.append(nu_stds[-1])
     de_means = [mean + delta_par for mean in de_means]
-    de_stds = [std - delta_par for std in de_stds] if args.scale_shrink else [std + delta_par for std in de_stds]
+    de_stds = [std - args.scale_shrink*delta_par for std in de_stds] 
     #print('check de parms',de_means,de_stds)
 
     nu_dists = get_dist_list(args.d_dim,nu_means,nu_stds)
